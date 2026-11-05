@@ -2,13 +2,18 @@ name: RFC Preview
 
 on:
   pull_request:
+    types: [opened, reopened, synchronize, closed]
     paths:
       - "text/*.md"
       - "text/**/*.md"
       - "0000-template.md"
 
+concurrency:
+  group: rfc-preview-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
-  contents: read
+  contents: write
   pull-requests: write
 
 jobs:
@@ -19,9 +24,11 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install pandoc
+        if: github.event.action != 'closed'
         run: sudo apt-get update && sudo apt-get install -y pandoc
 
-      - name: Render markdown
+      - name: Build preview
+        if: github.event.action != 'closed'
         run: |
           shopt -s nullglob
           files=(0000-template.md text/*.md)
@@ -33,15 +40,9 @@ jobs:
             --css="https://cdn.jsdelivr.net/npm/github-markdown-css@5/github-markdown.min.css" \
             -o preview/index.html
 
-      - name: Upload preview
-        uses: actions/upload-artifact@v4
+      - name: Deploy preview
+        uses: rossjrw/pr-preview-action@v1
         with:
-          name: rfc-preview
-          path: preview/index.html
-
-      - name: Comment preview link
-        uses: marocchino/sticky-pull-request-comment@v2
-        with:
-          header: rfc-preview
-          message: |
-            Rendered RFC preview: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          source-dir: ./preview
+          preview-branch: gh-pages
+          umbrella-dir: pr-preview
