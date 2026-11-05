@@ -23,22 +23,29 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install pandoc
-        if: github.event.action != 'closed'
-        run: sudo apt-get update && sudo apt-get install -y pandoc
-
       - name: Build preview
         if: github.event.action != 'closed'
         run: |
-          shopt -s nullglob
-          files=(0000-template.md text/*.md)
-          mkdir -p preview
-          pandoc "${files[@]}" \
-            --standalone \
-            --toc \
-            --metadata title="Qrisp RFC preview" \
-            --css="https://cdn.jsdelivr.net/npm/github-markdown-css@5/github-markdown.min.css" \
-            -o preview/index.html
+          python3 -m pip install --quiet markdown
+          python3 - <<'PY'
+          from pathlib import Path
+          import markdown
+
+          files = sorted(Path("text").glob("*.md"))
+          body = "\n".join(
+              f"<h1>{path.name}</h1>\n" + markdown.markdown(path.read_text(encoding="utf-8"))
+              for path in files
+          )
+
+          preview = Path("preview")
+          preview.mkdir(exist_ok=True)
+          (preview / "index.html").write_text(
+              "<!doctype html><meta charset=utf-8><title>Qrisp RFC preview</title>"
+              "<style>body{max-width:52rem;margin:2rem auto;padding:0 1rem;font:16px/1.6 system-ui,sans-serif}</style>"
+              + body,
+              encoding="utf-8",
+          )
+          PY
 
       - name: Deploy preview
         uses: rossjrw/pr-preview-action@v1
