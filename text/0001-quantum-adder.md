@@ -1,3 +1,5 @@
+# RFC 001: Introduce a `QuantumAdder` Class
+
 - Feature Name: `QuantumAdder` Class
 - Start Date: 2026-11-05
 - RFC PR: https://github.com/purva-thakre/qrisp-rfcs/pull/2
