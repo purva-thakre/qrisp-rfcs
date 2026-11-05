@@ -1,7 +1,7 @@
 - Feature Name: `QuantumAdder` Class
 - Start Date: 2026-11-05
-- RFC PR: (leave empty until the pull request is opened)
-- Qrisp Issue: (link the tracking issue, if one exists)
+- RFC PR: https://github.com/purva-thakre/qrisp-rfcs/pull/2
+- Qrisp Issue: N/A
 
 ## Summary
 [summary]: #summary
