@@ -2,16 +2,10 @@ name: RFC Preview
 
 on:
   push:
-    paths:
-      - "text/*.md"
-      - "text/**/*.md"
-      - "0000-template.md"
+    branches-ignore:
+      - gh-pages
   pull_request:
     types: [opened, reopened, synchronize, closed]
-    paths:
-      - "text/*.md"
-      - "text/**/*.md"
-      - "0000-template.md"
 
 concurrency:
   group: rfc-preview-${{ github.ref }}
