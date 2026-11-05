@@ -1,6 +1,11 @@
 name: RFC Preview
 
 on:
+  push:
+    paths:
+      - "text/*.md"
+      - "text/**/*.md"
+      - "0000-template.md"
   pull_request:
     types: [opened, reopened, synchronize, closed]
     paths:
@@ -47,9 +52,21 @@ jobs:
           )
           PY
 
-      - name: Deploy preview
+      - name: Deploy preview (pull request)
+        if: github.event_name == 'pull_request'
         uses: rossjrw/pr-preview-action@v1
         with:
           source-dir: ./preview
           preview-branch: gh-pages
           umbrella-dir: pr-preview
+
+      - name: Deploy preview (push)
+        if: github.event_name == 'push'
+        uses: rossjrw/pr-preview-action@v1
+        with:
+          source-dir: ./preview
+          preview-branch: gh-pages
+          umbrella-dir: pr-preview
+          pr-number: ${{ github.ref_name }}
+          comment: false
+          action: deploy
