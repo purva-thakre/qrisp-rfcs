@@ -32,7 +32,7 @@ jobs:
 
           files = sorted(Path("text").glob("*.md"))
           body = "\n".join(
-              f"<h1>{path.name}</h1>\n" + markdown.markdown(path.read_text(encoding="utf-8"))
+              markdown.markdown(path.read_text(encoding="utf-8"))
               for path in files
           )
 
