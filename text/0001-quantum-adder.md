@@ -1,4 +1,4 @@
-- Feature Name: `quantum_adder`
+- Feature Name: `QuantumAdder` Class
 - Start Date: 2026-11-05
 - RFC PR: (leave empty until the pull request is opened)
 - Qrisp Issue: (link the tracking issue, if one exists)
