@@ -1,9 +1,6 @@
 name: RFC Preview
 
 on:
-  push:
-    branches-ignore:
-      - gh-pages
   pull_request:
     types: [opened, reopened, synchronize, closed]
 
