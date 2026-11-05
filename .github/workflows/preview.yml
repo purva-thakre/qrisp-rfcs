@@ -1,0 +1,47 @@
+name: RFC Preview
+
+on:
+  pull_request:
+    paths:
+      - "text/*.md"
+      - "text/**/*.md"
+      - "0000-template.md"
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install pandoc
+        run: sudo apt-get update && sudo apt-get install -y pandoc
+
+      - name: Render markdown
+        run: |
+          shopt -s nullglob
+          files=(0000-template.md text/*.md)
+          mkdir -p preview
+          pandoc "${files[@]}" \
+            --standalone \
+            --toc \
+            --metadata title="Qrisp RFC preview" \
+            --css="https://cdn.jsdelivr.net/npm/github-markdown-css@5/github-markdown.min.css" \
+            -o preview/index.html
+
+      - name: Upload preview
+        uses: actions/upload-artifact@v4
+        with:
+          name: rfc-preview
+          path: preview/index.html
+
+      - name: Comment preview link
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: rfc-preview
+          message: |
+            Rendered RFC preview: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}

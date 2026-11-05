@@ -6,90 +6,35 @@
 ## Summary
 [summary]: #summary
 
-One paragraph explanation of the feature.
+One paragraph explanation of the proposal.
 
 ## Motivation
 [motivation]: #motivation
 
-Any changes to Qrisp should focus on solving a problem that users of Qrisp are having.
-This section should explain this problem in detail, including necessary background.
+What problem does this solve? Who is affected, and why is it worth doing now?
 
-It should also contain several specific use cases where this feature can help a user, and explain how it helps.
-This can then be used to guide the design of the feature.
+## Background and current architecture
+[background-and-current-architecture]: #background-and-current-architecture
 
-This section is one of the most important sections of any RFC, and can be lengthy.
+Explain how the relevant part of Qrisp works today. Include the current code paths, types, and constraints that the proposal must account for.
 
-## Guide-level explanation
-[guide-level-explanation]: #guide-level-explanation
+## Proposed design
+[proposed-design]: #proposed-design
 
-Explain the proposal as if it was already included in Qrisp and you were teaching it to another Qrisp programmer. That generally means:
-
-- Introducing new named concepts.
-- Explaining the feature largely in terms of examples.
-- Explaining how Qrisp programmers should *think* about the feature, and how it should impact the way they write quantum programs. It should explain the impact as concretely as possible.
-- If applicable, provide sample error messages, deprecation warnings, or migration guidance.
-- If applicable, describe the differences between teaching this to existing Qrisp programmers and new Qrisp programmers.
-- Discuss how this impacts the ability to read, understand, and maintain Qrisp code. Code is read and modified far more often than written; will the proposed feature make code easier to maintain?
-
-For implementation-oriented RFCs (for example, compiler internals or backend integration), this section should focus on how Qrisp contributors should think about the change, and give examples of its concrete impact. For policy RFCs, this section should provide an example-driven introduction to the policy and explain its impact in concrete terms.
-
-## Reference-level explanation
-[reference-level-explanation]: #reference-level-explanation
-
-This is the technical portion of the RFC. Explain the design in sufficient detail that:
-
-- Its interaction with other features is clear.
-- It is reasonably clear how the feature would be implemented.
-- Corner cases are dissected by example.
-
-The section should return to the examples given in the previous section, and explain more fully how the detailed proposal makes those examples work.
-
-## Drawbacks
-[drawbacks]: #drawbacks
-
-Why should we *not* do this?
-
-## Rationale and alternatives
-[rationale-and-alternatives]: #rationale-and-alternatives
-
-- Why is this design the best in the space of possible designs?
-- What other designs have been considered and what is the rationale for not choosing them?
-- What is the impact of not doing this?
-- If this is a language proposal, could this be done in a library or macro instead? Does the proposed change make Qrisp code easier or harder to read, understand, and maintain?
-
-## Prior art
-[prior-art]: #prior-art
-
-Discuss prior art, both the good and the bad, in relation to this proposal.
-A few examples of what this can include are:
-
-- For language, library, compiler, and backend proposals: Does this feature exist in other quantum programming frameworks and what experience has their community had?
-- For community proposals: Is this done by some other community and what were their experiences with it?
-- For other areas: What lessons can we learn from what other communities have done here?
-- Papers: Are there any published papers or great posts that discuss this? If you have some relevant papers to refer to, this can serve as a more detailed theoretical background.
-
-This section is intended to encourage you as an author to think about the lessons from other frameworks and provide readers of your RFC with a fuller picture.
-If there is no prior art, that is fine - your ideas are interesting to us whether they are brand new or an adaptation from elsewhere.
-
-Note that while precedent set by other frameworks is some motivation, it does not on its own motivate an RFC.
-Please also take into consideration that Qrisp sometimes intentionally diverges from common approaches.
+Describe the design in enough detail to implement and review it. Cover the public behavior, the internal architecture, corner cases, and how the change interacts with the rest of Qrisp.
 
 ## Unresolved questions
 [unresolved-questions]: #unresolved-questions
 
-- What parts of the design do you expect to resolve through the RFC process before this gets merged?
-- What parts of the design do you expect to resolve through the implementation of this feature before stabilization?
-- What related issues do you consider out of scope for this RFC that could be addressed in the future independently of the solution that comes out of this RFC?
+- What parts of the design are still open?
+- What should be resolved before merging, and what can wait for implementation?
 
 ## Future possibilities
 [future-possibilities]: #future-possibilities
 
-Think about what the natural extension and evolution of your proposal would be and how it would affect Qrisp as a whole in a holistic way. Try to use this section as a tool to more fully consider all possible interactions with Qrisp in your proposal.
-Also consider how this all fits into the roadmap for the project and the relevant maintainers.
+Natural extensions and follow-up work that are out of scope for this RFC.
 
-This is also a good place to "dump ideas" if they are out of scope for the RFC you are writing but otherwise related.
+## Public API impact
+[public-api-impact]: #public-api-impact
 
-If you have tried and cannot think of any future possibilities, you may simply state that you cannot think of anything.
-
-Note that having something written down in the future-possibilities section is not a reason to accept the current or a future RFC; such notes should be in the section on motivation or rationale in this or subsequent RFCs.
-The section merely provides additional information.
+Describe any additions, changes, deprecations, or removals in Qrisp's public API. Include migration guidance and backwards-compatibility notes. Write "None" if the proposal is internal only.
