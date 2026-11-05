@@ -25,6 +25,22 @@ TODO: Describe the current addition code paths, the duplication or inconsistency
 
 TODO: Define the interface, how implementations are selected, and how it lowers to circuits. Include examples and corner cases.
 
+### Test example
+
+```python
+from qrisp import QuantumFloat
+from qrisp.arithmetic import QuantumAdder
+
+a = QuantumFloat(4)
+b = QuantumFloat(4)
+a[:] = 3
+b[:] = 4
+
+QuantumAdder(a, b).apply()
+
+assert b.get_measurement() == {7: 1.0}
+```
+
 ## Unresolved questions
 [unresolved-questions]: #unresolved-questions
 
