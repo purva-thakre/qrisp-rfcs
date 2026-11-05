@@ -1,0 +1,55 @@
+name: RFC Preview
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, closed]
+    paths:
+      - "text/*.md"
+      - "text/**/*.md"
+      - "0000-template.md"
+
+concurrency:
+  group: rfc-preview-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build preview
+        if: github.event.action != 'closed'
+        run: |
+          python3 -m pip install --quiet markdown
+          python3 - <<'PY'
+          from pathlib import Path
+          import markdown
+
+          files = sorted(Path("text").glob("*.md"))
+          body = "\n".join(
+              f"<h1>{path.name}</h1>\n" + markdown.markdown(path.read_text(encoding="utf-8"))
+              for path in files
+          )
+
+          preview = Path("preview")
+          preview.mkdir(exist_ok=True)
+          (preview / "index.html").write_text(
+              "<!doctype html><meta charset=utf-8><title>Qrisp RFC preview</title>"
+              "<style>body{max-width:52rem;margin:2rem auto;padding:0 1rem;font:16px/1.6 system-ui,sans-serif}</style>"
+              + body,
+              encoding="utf-8",
+          )
+          PY
+
+      - name: Deploy preview
+        uses: rossjrw/pr-preview-action@v1
+        with:
+          source-dir: ./preview
+          preview-branch: gh-pages
+          umbrella-dir: pr-preview
