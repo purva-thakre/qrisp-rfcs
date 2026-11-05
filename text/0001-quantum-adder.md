@@ -1,7 +1,9 @@
-- Feature Name: `quantum_adder`
+# RFC 001: Introduce a `QuantumAdder` Class
+
+- Feature Name: `QuantumAdder` Class
 - Start Date: 2026-11-05
-- RFC PR: (leave empty until the pull request is opened)
-- Qrisp Issue: (link the tracking issue, if one exists)
+- RFC PR: https://github.com/purva-thakre/qrisp-rfcs/pull/2
+- Qrisp Issue: N/A
 
 ## Summary
 [summary]: #summary
@@ -22,6 +24,22 @@ TODO: Describe the current addition code paths, the duplication or inconsistency
 [proposed-design]: #proposed-design
 
 TODO: Define the interface, how implementations are selected, and how it lowers to circuits. Include examples and corner cases.
+
+### Test example
+
+```python
+from qrisp import QuantumFloat
+from qrisp.arithmetic import QuantumAdder
+
+a = QuantumFloat(4)
+b = QuantumFloat(4)
+a[:] = 3
+b[:] = 4
+
+QuantumAdder(a, b).apply()
+
+assert b.get_measurement() == {7: 1.0}
+```
 
 ## Unresolved questions
 [unresolved-questions]: #unresolved-questions
