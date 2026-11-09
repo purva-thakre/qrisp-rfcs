@@ -15,7 +15,7 @@ This RFC walks through every in-place adder in Qrisp and the tooling around them
 ## Motivation
 [motivation]: #motivation
 
-Every arithmetic operation in Qrisp builds on in-place addition. Subtraction negates and adds. Multiplication is repeated addition. Comparisons subtract and check the sign. Montgomery reduction is a sequence of additions and shifts. The in-place adder is the foundation that everything else sits on.
+In-place addition is the single primitive underlying all arithmetic in Qrisp. Subtraction is performed by negating before adding; multiplication reduces to repeated addition; comparisons are implemented as a subtraction followed by a sign check; and Montgomery reduction decomposes into a series of additions and shifts. In short, the in-place adder is the foundation on which the entire arithmetic stack rests.
 
 Today, if you want to use a specific adder for your computation, you have to know which function to import, what arguments it expects, and whether it works in your execution mode (static vs.dynamic). If you want to swap one adder for another, you have to check that the replacement accepts the same input types and handles carry/control qubits the same way. There is no common interface that lets you treat adders interchangeably.
 
