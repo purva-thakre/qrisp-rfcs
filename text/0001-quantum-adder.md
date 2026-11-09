@@ -21,7 +21,7 @@ Today, if you want to use a specific adder for your computation, you have to kno
 
 This also makes it hard to write a custom adder. Qrisp has tooling for amending adders (so they handle mixed input types like integers and quantum registers) and for verifying the custom adder works as expected (running a standard correctness test suite). But this tooling is easy to miss. It lives in separate files, uses a different calling convention than the adders themselves, and is not referenced anywhere. Although these functions were originally defined without the leading underscore, they are not yet part of the public API.
 
-A user who implements a new adder algorithm has to read the source to find out that `ammend_inpl_adder` and `inpl_adder_test` exist, call them in the right order, and work around their respective quirks. Note that both functions need significant refactoring on their own, which this RFC also addresses.
+A user who implements a new adder algorithm has to read the source to find out that `ammend_inpl_adder` and `inpl_adder_test` exist, call them in the right order, and work around their respective quirks. Note that both functions require significant refactoring on their own, which this RFC also addresses.
 
 Wrapping each adder in a `QuantumAdder` class gives them a shared type, puts the tooling where users can find it, and lets any arithmetic function accept an adder as a parameter and pass it through to the operations underneath.
 
