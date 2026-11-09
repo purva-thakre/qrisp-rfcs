@@ -29,7 +29,7 @@ Wrapping each adder in a `QuantumAdder` class gives them a shared type, puts the
 Every adder does the same fundamental thing: `b += a` on generic `QuantumVariable` objects in static and/or dynamic mode. The first operand `a` can be either a classical integer or a quantum register. The second operand `b` is always a quantum register and is where the result is stored -- the addition happens in place. Beyond the two operands, an adder may accept a carry-in qubit (an incoming carry from a previous addition), a carry-out qubit (to capture overflow), and a control qubit (so the addition only happens when the control is in state `1`). The adders differ in how they compute and propagate carries through the register, and in which of these optional inputs they support.
 
 > [!NOTE]
-> Whenever a `QuantumVariable` is described as an input to an in-place adder, it refers only to the subtypes that allow a numerical value to be encoded in them. Thus, this excludes `QuantumChar` and `QuantumString`.
+> Whenever a generic `QuantumVariable` is described as an input to an in-place adder, it refers only to the subtypes that allow a numerical value to be encoded in them. Thus, this document excludes `QuantumChar` and `QuantumString` from the discussion.
 
 But, as stated previously, they are all inconsistently defined in Qrisp. This section provides a description of how each in-place adder works and where it stands in terms of moving towards a unified interface. The Cuccaro and Gidney adders were refactored recently and now serve as the reference design that the other adders are being brought in line with. The Thapliyal adder, Remaud adder, and Fourier adder all have open PRs that refactor them to match the Cuccaro/Gidney interface.
 
@@ -42,6 +42,41 @@ The adder walks through the register one bit at a time, from least significant t
 Cuccaro is the simplest adder in Qrisp: linear depth (proportional to the number of qubits), one ancilla qubit for the carry chain. Input `a` can be an integer, a binary string, a `BigInteger`, or a `QuantumVariable`. Input `b` must be a `QuantumVariable`. When `a` is classical, the Qrisp Cuccaro adder function encodes it into a temporary quantum variable internally.
 
 It has the `@custom_control` decorator, supports carry-in, carry-out, and control qubits, and works in both static and dynamic (JASP) modes. This is the reference implementation that other adders are being refactored to match.
+
+### Gidney Adder
+
+Gidney is an AND-based adder from arXiv:1709.06648. Same signature and same input flexibility as Cuccaro.
+
+Like Cuccaro, this is a ripple-carry adder that walks through the register bit by bit. The difference is in how it computes carries. Instead of MAJ/UMA gates, it uses AND gates (a type of Toffoli gate that can be uncomputed with a single measurement). The AND gate computes whether two bits are both 1. By chaining these together with CNOT gates, the adder builds up the carry chain.
+
+The big advantage shows up when `a` is classical: the adder uses a semi-classical carry chain that never encodes `a` into qubits at all. It just applies controlled gates based on the bits of the classical value. This skips the step to define a temporary register that Cuccaro needs, saving qubits and gates.
+
+The Gidney adder has same depth and ancilla cost as the Cuccaro adder for quantum-quantum addition. For classical-quantum addition it's more efficient because it avoids the temporary encoding.
+
+The adder has `@custom_control`, full carry support, and works in both modes.
+
+### Fourier Adder
+
+Fourier is a Draper-style adder that works in the Fourier basis, based on arXiv:quant-ph/0008033.
+
+Instead of computing carries like the other adders, this one transforms `b` into the Fourier basis using a Quantum Fourier Transform (QFT). In the Fourier basis, addition becomes a series of phase rotations. Each qubit of `a` adds a small phase to each qubit of `b`, and the phases add up to the correct sum. Then the inverse QFT transforms `b` back to the computational basis. No ancillas needed, but the number of phase gates is quadratic (every qubit of `a` interacts with every qubit of `b`).
+
+The `perform_QFT` flag lets you skip the QFT/inverse-QFT when you're chaining multiple additions. You apply the QFT once at the start, do all your additions in the Fourier basis, and apply the inverse QFT once at the end.
+
+Currently `a` can be an integer, a `QuantumVariable`, or a list of qubits. Same for `b`. The signature is different from Cuccaro/Gidney: no carry-in, carry-out, or control parameters, no `@custom_control` decorator.
+
+> [!IMPORTANT]
+> Work is in-progress to consolidate the separately defined static and dynamic versions of the Fourier adder into a single function compatible in both modes. This refactoring also works to bring the Fourier adder signature in-line with the Cuccaro adder. 
+
+### Gidney Venting Adder
+
+Gidney Venting is a carry-venting classical-quantum adder that uses mid-circuit measurements to save qubits.
+
+Like the regular Gidney adder, this builds a semi-classical carry chain. The trick is that after computing each carry, the adder measures it in the X basis (apply H, then measure). This "vents" the qubit: the measurement collapses it, freeing it for reuse. The measurement outcome is tracked classically, and later corrections are applied based on the accumulated measurement results. This trades qubit count for measurement count: only 3 clean ancillae are needed, two alternating as the streaming carry window and one for scratch, regardless of register size.
+
+The catch: `a` must be a classical integer or `BigInteger`. This is a classical-quantum adder only, it can't add two quantum registers. And it only works in JASP mode, because static mode doesn't have mid-circuit measurements. For small registers (under 6 qubits), the overhead isn't worth it, so it falls back to the Gidney adder function.
+
+Has `@custom_control` and full carry support.
 
 
 
