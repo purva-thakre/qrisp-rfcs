@@ -25,6 +25,7 @@ jobs:
           python3 -m pip install --quiet markdown pymdown-extensions pygments
           python3 - <<'PY'
           from pathlib import Path
+          import re
           import markdown
           from pygments.formatters import HtmlFormatter
 
@@ -56,11 +57,41 @@ jobs:
               for path in files
           )
 
+          body = re.sub(
+              r"<p>\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*(.*?)</p>",
+              lambda m: (
+                  f'<div class="alert {m.group(1).lower()}">'
+                  f'<p class="alert-title">{m.group(1).capitalize()}</p>'
+                  f"<p>{m.group(2)}</p></div>"
+              ),
+              body,
+              flags=re.S,
+          )
+          body = re.sub(
+              r'<blockquote>\s*((?:<div class="alert [a-z]+">.*?</div>\s*)+)</blockquote>',
+              r"\1",
+              body,
+              flags=re.S,
+          )
+
           style = """
           body{max-width:52rem;margin:2rem auto;padding:0 1rem;font:16px/1.6 system-ui,sans-serif}
           pre{background:#ddf4ff;padding:1rem;overflow:auto;border-radius:6px}
           code{background:#ddf4ff;color:#0550ae;padding:.15em .3em;border-radius:4px}
           pre code{background:none;color:inherit;padding:0}
+          div.alert{padding:.5rem 1rem;margin:1rem 0;border-left:4px solid;border-radius:6px}
+          div.alert p{margin:0}
+          div.alert .alert-title{font-weight:600;margin:0 0 .25rem}
+          div.alert.note{background:#ddf4ff;border-color:#0969da}
+          div.alert.note .alert-title{color:#0969da}
+          div.alert.tip{background:#dafbe1;border-color:#1a7f37}
+          div.alert.tip .alert-title{color:#1a7f37}
+          div.alert.important{background:#fbefff;border-color:#8250df}
+          div.alert.important .alert-title{color:#8250df}
+          div.alert.warning{background:#fff8c5;border-color:#9a6700}
+          div.alert.warning .alert-title{color:#9a6700}
+          div.alert.caution{background:#ffebe9;border-color:#cf222e}
+          div.alert.caution .alert-title{color:#cf222e}
           table{border-collapse:collapse}
           th,td{border:1px solid #d0d7de;padding:.4rem .7rem}
           img{max-width:100%}
