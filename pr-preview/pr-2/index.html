@@ -300,23 +300,27 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 </li>
 <li>
 <p>Should accept all types that allow an end user to encode an int or a float value into the quantum type: <code>QuantumVariable</code>, <code>QuantumFloat</code>, <code>QuantumInt</code> (see the next RFC where <code>QuantumFloat</code> is going to be split into <code>QuantumInt</code> and <code>QuantumFloat</code>), <code>QuantumModulus</code>, <code>QuantumBool</code>, <code>DynamicQubitArray</code>, and <code>list[Qubit]</code>.</p>
-<div class="alert note"><p class="alert-title">Note</p><p><code>QuantumBool</code> is a special case because its size is fixed at 1 qubit and cannot be set by the user, so it can only ever represent 0 or 1.</p></div>
-
 <ul>
 <li>The first argument can also be a classical value: <code>int</code>, <code>np.integer</code>, <code>str</code> (binary string), <code>BigInteger</code>, or a traced JAX scalar in dynamic mode.</li>
 <li>Non-numeric quantum types <code>QuantumChar</code> and <code>QuantumString</code> should be rejected as either input.</li>
-<li>Should have a custom controlled version (<code>@custom_control</code>) compatible in both modes.</li>
-<li>Should safely handle inputs of unequal sizes.</li>
+</ul>
+<div class="alert note"><p class="alert-title">Note</p><p><code>QuantumBool</code> is a special case because its size is fixed at 1 qubit and cannot be set by the user, so it can only ever represent 0 or 1.</p></div>
+
+</li>
+<li>
+<p>Should have a custom controlled version (<code>@custom_control</code>) compatible in both modes.</p>
+</li>
+<li>Should safely handle inputs of unequal sizes.<ul>
 <li>The result always fits into the second input <code>b</code>.</li>
 <li>If the sum is larger than <code>b</code> can hold, it wraps around (the result is the sum modulo <span class="arithmatex">\(2^{\text{len}(b)}\)</span>).</li>
 <li>When <code>a</code> is larger than <code>b</code>, <code>a</code> is truncated to match <code>b</code>'s size.</li>
 <li>When <code>a</code> is smaller, <code>a</code> is padded with ancilla qubits that are only used during the addition and safely removed afterward.</li>
 <li>The second input's size is never adjusted because ancilla qubits written during the addition cannot be safely removed.</li>
+</ul>
+</li>
 <li>Should leave the first input <code>a</code> unchanged. </li>
 <li>Should cleanup any ancillas that were allocated internally in an adder to compute the in-place addition.</li>
 <li>Should not leave behind any spurious phases on the output. </li>
-</ul>
-</li>
 </ul>
 <h3 id="class-definition">Class definition</h3>
 <p>The <code>QuantumAdder</code> class is intentionally thin. It wraps an existing adder function without changing how that function behaves when called. The wrapper just gives the function a type you can check against and puts the tooling (amending, verification) in a place where users can find it.</p>
