@@ -165,7 +165,7 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 <tr>
 <td><code>fourier_adder</code></td>
 <td>QFT + phase rotations</td>
-<td><span class="arithmatex">\(O(n)\)</span></td>
+<td><span class="arithmatex">\(O(n)\)</span> parallel or <span class="arithmatex">\(O(n^2)\)</span></td>
 <td>0</td>
 <td style="text-align: center;">❌*</td>
 <td style="text-align: center;">❌*</td>
@@ -175,7 +175,7 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 </tr>
 <tr>
 <td><code>remaud_adder</code></td>
-<td>Ladder synthesis</td>
+<td>Log-depth ripple carry</td>
 <td><span class="arithmatex">\(O(\log^2 n)\)</span></td>
 <td>0</td>
 <td style="text-align: center;">❌*</td>
