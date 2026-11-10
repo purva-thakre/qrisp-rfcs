@@ -15,7 +15,7 @@ This RFC walks through every in-place adder in Qrisp and the tooling around them
 ## Motivation
 [motivation]: #motivation
 
-In-place addition is the single primitive underlying all arithmetic in Qrisp. Subtraction is performed by negating before adding; multiplication reduces to repeated addition; comparisons are implemented as a subtraction followed by a sign check; and Montgomery reduction decomposes into a series of additions and shifts. In short, the in-place adder is the foundation on which the entire arithmetic stack rests.
+In-place addition is the single primitive underlying all arithmetic in Qrisp. Subtraction is performed by negating before adding; multiplication reduces to repeated addition; comparisons are implemented as a subtraction followed by a sign check; and Montgomery reduction decomposes into a series of additions and shifts. Any out-of-place arithmetic operations store the result of the in-place adder in a new `QuantumVariable`. In short, the in-place adders are the foundation on which the entire arithmetic stack rests.
 
 Today, if you want to use a specific adder for your computation, you have to know which function to import, what arguments it expects, and whether it works in your execution mode (static vs. dynamic). If you want to swap one adder for another, you have to check that the replacement accepts the same input types and handles carry/control qubits the same way. There is no common interface that lets you treat adders interchangeably.
 
@@ -26,12 +26,36 @@ Wrapping each adder in a `QuantumAdder` class gives them a shared type, puts the
 ## Background and current architecture
 [background-and-current-architecture]: #background-and-current-architecture
 
-Every adder does the same fundamental thing: $b \mathrel{+}= a$ on generic `QuantumVariable` objects in static and/or dynamic mode. The first operand `a` can be either a classical integer or a quantum register. The second operand `b` is always a quantum register and is where the result is stored -- the addition happens in place. Beyond the two operands, an adder may accept a carry-in qubit (an incoming carry from a previous addition), a carry-out qubit (to capture overflow), and a control qubit (so the addition only happens when the control is in state `1`). The adders differ in how they compute and propagate carries through the register, and in which of these optional inputs they support.
-
 > [!NOTE]
 > Whenever a generic `QuantumVariable` is described as an input to an in-place adder, it refers only to the subtypes that allow a numerical value to be encoded in them. Thus, this document excludes `QuantumChar` and `QuantumString` from the discussion.
 
+Every adder does the same fundamental thing: $b \mathrel{+}= a$ on generic `QuantumVariable` objects in static and/or dynamic mode. The first operand `a` can be either a classical integer or a `QuantumVariable`. The second operand `b` is always a `QuantumVariable` and is where the result is stored such that the addition happens in place. Beyond the two operands, an adder may accept a carry-in qubit (an incoming carry from a previous addition), a carry-out qubit (to capture overflow), and a control qubit (so the addition only happens when the control `QuantumVariable` is in state `1`). The adders differ in how they compute and propagate carries through the register, and in which of these optional inputs they support.
+
 But, as stated previously, they are all inconsistently defined in Qrisp. This section provides a description of how each in-place adder works and where it stands in terms of moving towards a unified interface. The Cuccaro and Gidney adders were refactored recently and now serve as the reference design that the other adders are being brought in line with. The Thapliyal adder, Remaud adder, and Fourier adder all have open PRs that refactor them to match the Cuccaro/Gidney interface.
+
+
+| Adder | How it adds | Depth | Ancillas | Carry-in | Carry-out | Control | Modes | Refactored? |
+|-------|------------|-------|----------|:--------:|:---------:|:-------:|-------|-------------|
+| `cuccaro_adder` | MAJ/UMA ripple carry | $O(n)$ | 1 | ✅ | ✅ | ✅ | Both | ✅ |
+| `gidney_adder` | AND-based ripple carry | $O(n)$ | $O(n)$ | ✅ | ✅ | ✅ | Both | ✅ |
+| `gidney_cq_venting` | Measured carry chain | $O(n)$ | 3 (streaming) | ✅ | ✅ | ✅ | JASP only | ✅ |
+| `fourier_adder` | QFT + phase rotations | $O(n^2)$ gates | 0 | ❌* | ❌* | ❌* | Both | 🚧 |
+| `remaud_adder` | Ladder synthesis | $O(\log^2 n)$ | 0 | ❌* | ✅ | ❌* | Both | 🚧 |
+| `qcla` | Brent-Kung carry tree | $O(\log n)$ | $O(n)$ | ❌ | ❌ | ✅ | Both | Removing |
+| `thapliyal_adder` | TR-gate ripple carry | $O(n)$ | 1 | ❌* | ❌* | ❌* | Static only (old) | 🚧 |
+
+**Legend:**
+
+- Carry/Control columns
+    - ✅ supported today
+    - ❌ not supported
+    - ❌* not supported yet, planned as part of the refactor
+- Refactored? column
+    - ✅ done
+    - 🚧 in progress
+    - `Removing` no refactor
+
+To summarize, they all do $b \mathrel{+}= a$, but there's no way to write code that says "give me any adder" without knowing which specific one you're dealing with.
 
 ### Cuccaro Adder
 
@@ -108,18 +132,6 @@ Like the regular Gidney adder, this builds a semi-classical carry chain. The tri
 The catch: `a` must be a classical integer or `BigInteger`. This is a classical-quantum adder only, it can't add two quantum registers. And it only works in JASP mode, because static mode doesn't have mid-circuit measurements. For small registers (under 6 qubits), the overhead isn't worth it, so it falls back to the Gidney adder function.
 
 Has `@custom_control` and full carry support.
-
-| Adder | How it adds | Depth | Ancillas | Carry/Control | Modes | Refactored? |
-|-------|------------|-------|----------|---------------|-------|-------------|
-| `cuccaro_adder` | MAJ/UMA ripple carry | $O(n)$ | 1 | Carry-in, carry-out, control | Both | Yes |
-| `gidney_adder` | AND-based ripple carry | $O(n)$ | $O(n)$ | Carry-in, carry-out, control | Both | Yes |
-| `gidney_cq_venting` | Measured carry chain | $O(n)$ | 3 (streaming) | Carry-in, carry-out, control | JASP only | Yes |
-| `fourier_adder` | QFT + phase rotations | $O(n^2)$ gates | 0 | None | Both | In progress |
-| `remaud_adder` | Ladder synthesis | $O(\log^2 n)$ | 0 | Explicit carry `z` only | Both | In progress |
-| `qcla` | Brent-Kung carry tree | $O(\log n)$ | $O(n)$ | Control only | Both | Removing |
-| `thapliyal_adder` | TR-gate ripple carry | $O(n)$ | 1 | None (old API) | Static only (old) | In progress |
-
-To summarize, they all do $b \mathrel{+}= a$, but there's no way to write code that says "give me any adder" without knowing which specific one you're dealing with.
 
 ### Adder Tooling
 
