@@ -154,7 +154,21 @@ The low-level helpers that were duplicated across adder files have been moved in
 ## Proposed design
 [proposed-design]: #proposed-design
 
+Ideally, an in-place adder in Qrisp
 
+* Should be compatible in both static and dynamic modes unless the adder relies on mid-circuit measurements with classically controlled corrections (for example, Gidney's venting adder), which require dynamic mode.
+    * Note that these adders only work with integers. They don't need to worry about issues like overflow, exponent alignment, signs, or non-integer inputs (like a QuantumFloat with a non-zero exponent). Those are handled at a higher level when quantum types are dispatched (at the level of infix arithmetic). The adder documentation will state this clearly. For example, for operators like +, each type handles these issues itself before using the adder: `QuantumFloat.__iadd__` aligns exponents first, while `QuantumInt.__iadd__` passes values straight to the adder etc.
+* Should follow the standard signature `(a, b, c_in=None, c_out=None, ctrl=None)` where possible, where `a` and `b` are the two integer values to be added, `c_in` and `c_out` designate the optional carry in and carry out values.
+    * The `c_in` parameter may be a `Qubit`, a `QuantumVariable` of size 1 (including `QuantumBool`), a single-element `list[Qubit]`, or a classical value of 0 or 1. The adder computes $b \leftarrow (a + b + c_{in}) \mod 2^{\text{len}(b)}$.
+    * The `c_out` parameter may be a `Qubit`, a `QuantumVariable` of size 1 (including `QuantumBool`), or a single-element `list[Qubit]`. The adder computes $c_{out} \leftarrow c_{out} \oplus \text{carry}$, so that `c_out` holds the bit that would otherwise be discarded on wraparound.
+    * Adders that do not natively support carry operations declare this in their metadata; for these, `.amend()` emulates the carry logic. In this emulation, `c_out` is treated as an extra most significant bit of `b`, and `c_in` is incorporated by means of a controlled increment.
+* Should accept all types that allow an end user to encode an int or a float value into the quantum type: `QuantumVariable`, `QuantumFloat`, `QuantumInt` (see the next tab where `QuantumFloat` is going to be split into `QuantumInt` and `QuantumFloat`), `QuantumModulus`, `QuantumBool`, `DynamicQubitArray`, and `list[Qubit]`.
+    * The first argument can also be a classical value: `int`, `np.integer`, `str` (binary string), `BigInteger`, or a traced JAX scalar in dynamic mode.
+    * Non-numeric quantum types `QuantumChar` and `QuantumString` should be rejected as either input.
+* Should have a custom controlled version (`@custom_control`) compatible in both modes.
+* Should safely handle inputs of unequal sizes. The result always fits into the second input `b`. If the sum is larger than `b` can hold, it wraps around (the result is the sum modulo $2^{\text{len}(b)}$). When `a` is larger than `b`, `a` is truncated to match `b`'s size. When `a` is smaller, `a` is padded with ancilla qubits that are only used during the addition and safely removed afterward. The second input's size is never adjusted because ancilla qubits written during the addition cannot be safely removed.
+    * For `QuantumModulus`, the result wraps at the modulus.
+    * For signed `QuantumFloat`, overflow handling needs to be decided: options include rejecting signed inputs at the adder level (handling the sign bit at a higher level), two's complement wraparound, or raising an error on overflow.
 
 ## Unresolved questions
 [unresolved-questions]: #unresolved-questions
