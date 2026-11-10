@@ -91,7 +91,7 @@ Instead of computing carries like the other adders, this one transforms `b` into
 
 The exact QFT-based addition uses $O(n^2)$ gates. The paper notes that the approximate QFT (AQFT) reduces this to $O(n \log n)$ operations, and that with enough parallelism ($n/2$ simultaneous two-qubit gates) the circuit runs in about $n + 1$ time slices, or $O(\log n)$ time slices with the AQFT.
 
-The `perform_QFT` flag lets you skip the QFT/inverse-QFT when you're chaining multiple additions. You apply the QFT once at the start, do all your additions in the Fourier basis, and apply the inverse QFT once at the end.
+The `perform_QFT` flag in the Qrisp implementation lets you skip the QFT/inverse-QFT when you're chaining multiple additions. You apply the QFT once at the start, do all your additions in the Fourier basis, and apply the inverse QFT once at the end.
 
 Currently `a` can be an integer, a `QuantumVariable`, or a list of qubits. Same for `b`. The signature is different from Cuccaro/Gidney: no carry-in, carry-out, or control parameters, no `@custom_control` decorator.
 
@@ -104,31 +104,25 @@ Remaud is an ancilla-free adder with polylogarithmic depth, based on [arXiv:2501
 
 The other adders process carries one after another (linear depth) or use extra qubits to compute them in parallel (QCLA). Remaud takes a different approach: starting from the Takahashi ripple-carry circuit, it replaces the CNOT and Toffoli ladders that cause the linear depth with logarithmic-depth equivalents. The addition circuit has seven slices: parallel CNOT layers, CNOT ladders, and Toffoli ladders. Each CNOT ladder is decomposed into a recursive $O(\log n)$-depth circuit (Lemma 2) and each Toffoli ladder into an $O(\log^2 n)$-depth circuit (Lemma 4), all without ancilla qubits. The result is $O(\log^2 n)$ depth with zero ancillas, at the cost of an $O(n \log n)$ (linearithmic) gate count.
 
-`a` and `b` must be the same size. `z` is a single qubit for carry overflow. The signature is completely different from Cuccaro/Gidney: no decorator, no carry-in/carry-out/control parameters. Instead it takes an explicit carry qubit as a required third argument.
+With the current Qrisp implementation, `a` and `b` must be the same size. `z` is a single qubit for carry overflow. The signature is completely different from Cuccaro/Gidney: no decorator, no carry-in/carry-out/control parameters. Instead it takes an explicit carry qubit as a required third argument.
 
 > [!IMPORTANT]
 > Work is in progress to refactor this adder and bring it in-line with the Cuccaro adder.
 
 ### QCLA Adder
 
-In a ripple-carry adder, each carry depends on the one before it, so the computation is sequential. QCLA computes all the carries at once using a tree structure called a Brent-Kung tree. First, it computes "propagate" and "generate" signals for each pair of input bits (does this pair produce a carry? does it pass one through?). Then it combines these signals up the tree in $O(\log n)$ steps, so the final carry at every position is known in parallel. Finally, it uses the carries to compute the sum bits. The tradeoff is that the tree needs $O(n)$ ancilla qubits.
-
-The paper gives a T-depth of $O(r) + O(\log(n/r))$, a T-count of $O(n) + O(n/r)$, and a qubit count of $O(n) - O(n/r)$, where $r$ is the radix. At a constant radix this simplifies to $O(\log n)$ T-depth and $O(n)$ T gates. The Qrisp implementation adds a `t_depth_reduction` flag (not from the paper) that trades CNOT depth for fewer ancillae: with `t_depth_reduction=True` the CNOT depth becomes linear, although the T-depth stays logarithmic; setting it to `False` keeps both logarithmic.
-
-a can be a QuantumFloat, a list of qubits, or an integer. b can be a QuantumFloat or a list of qubits. Internally it dispatches to cq_qcla for classical a or qq_qcla for quantum a.
-
-No decorator. Has ctrl but no carry-in or carry-out. The radix_base, radix_exponent, and t_depth_reduction parameters control the tree structure and are specific to this algorithm.
+QCLA is a carry-lookahead adder based on [arXiv:2304.02921](https://arxiv.org/abs/2304.02921) that uses a Brent-Kung tree to compute all carries in parallel, achieving $O(\log n)$ T-depth and $O(n)$ T gates at the cost of $O(n)$ ancilla qubits. It supports classical-quantum and quantum-quantum inputs, has a `ctrl` parameter but no carry-in or carry-out, and does not use the `@custom_control` decorator.
 
 > [!CAUTION]
 > Planned for deprecation and removal. 
 
 ### Thapliyal Adder
 
-Similar to Cuccaro, this walks through the register bit by bit. But instead of MAJ/UMA gates, it uses TR gates, a distinct reversible gate built from one Controlled-V gate, one CNOT gate, and two Controlled-V+ gates (quantum cost 4). The TR gate realizes the Boolean functions $A \cdot \bar{B} \oplus C$ and $A \oplus B$. The carry ripples forward through the chain, and on the way back the sum bits are completed. Linear depth, similar ancilla cost to Cuccaro.
+Similar to Cuccaro, this walks through the register bit by bit. But instead of MAJ/UMA gates, it uses TR gates, a distinct reversible gate built from one Controlled-V gate, one CNOT gate, and two Controlled-$V^\dagger$ gates (quantum cost 4), where V is the $\sqrt{X}$ (square root of NOT) gate and $V^\dagger$ is its inverse. The TR gate realizes the Boolean functions $A \cdot \bar{B} \oplus C$ and $A \oplus B$. The carry ripples forward through the chain, and on the way back the sum bits are completed. Linear depth, similar ancilla cost to Cuccaro.
 
 The paper gives two ripple-carry designs, both using TR gates and both without ancilla input bits. The no-input-carry design (Section 4) has a quantum cost of $13n - 8$ and a propagation delay of $(11n - 4)\Delta$. The with-input-carry design (Section 5) has a quantum cost of $15n - 6$ and a delay of $(9n + 1)\Delta$. Qrisp uses the TR gate and allocates one output qubit for the carry; cost and depth remain linear in both cases.
 
-Currently this exists as thapliyal_procedure, a low-level function that takes a QuantumCircuit object and raw qubit lists. It only works in static mode. inpl_add (the legacy dispatcher in ripple_carry_adder.py) calls it internally.
+Currently this exists as `thapliyal_procedure`, a low-level function that takes a `QuantumCircuit` object and raw qubit lists. It only works in static mode. `inpl_add` (the legacy dispatcher in `ripple_carry_adder.py`) calls it internally.
 
 > [!IMPORTANT]
 > Work is in progress to refactor this adder and bring it in-line with the Cuccaro adder.
@@ -139,7 +133,7 @@ Gidney Venting is a carry-venting classical-quantum adder that uses mid-circuit 
 
 Like the regular Gidney adder, this builds a classical-quantum carry chain. The trick is that after computing each carry, the adder measures it in the X basis. This "vents" the qubit: the measurement collapses it, freeing it for reuse. The measurement outcome is tracked classically, and later corrections are applied based on the accumulated measurement results. This trades qubit count for measurement count: only 3 clean ancillae are needed regardless of register size.
 
-The paper's constant-workspace construction uses 3 clean ancillae and $4n \pm O(1)$ Toffoli gates at linear ($O(n)$) depth. It also gives a lower-Toffoli variant with $3n \pm O(1)$ Toffolis, 2 clean ancillae, and $n - 2$ dirty ancillae; Qrisp uses the 3-clean-ancilla version.
+The paper's constant-workspace construction uses 3 clean ancillae and $4n \pm O(1)$ Toffoli gates at linear ($O(n)$) depth. It also gives a lower-Toffoli variant with $3n \pm O(1)$ Toffolis, 2 clean ancillae, and $n - 2$ dirty ancillae. The Qrisp implementation uses the 3-clean-ancilla construction. It splits the target register in half: the bottom half is added using a clean carry-venting chain (Fig. 2 of the paper), and the top half is added using the paper’s dirty-ancilla construction (Fig. 4), which borrows the bottom-half target qubits as dirty workspace. The 3 clean ancillae provide the streaming carry window and mid-carry bridge throughout.
 
 The catch: `a` must be a classical integer or `BigInteger`. This is a classical-quantum adder only, it can't add two quantum registers. And it only works in JASP mode, because static mode doesn't have mid-circuit measurements. For small registers (under 6 qubits), the overhead isn't worth it, so it falls back to the Gidney adder function.
 
@@ -147,15 +141,13 @@ Has `@custom_control` and full carry support.
 
 ### Adder Tooling
 
-The low-level helpers that were duplicated across adder files have been moved into a shared `adder_utilities.py` module (PR #990). This includes shared input validation (`_validate_adder_inputs`), type rejection for non-numeric quantum types (`_reject_unsupported_quantum_types`), optional qubit unwrapping (`_normalize_optional_input_arg`), binary string parsing, list-to-DynamicQubitArray conversion, bit extraction, and shared type aliases (`QuantumRegister`, `OptionalQubit`).
+The low-level helpers that were duplicated across adder files have been moved into a shared `adder_utilities.py` module. This includes shared input validation (`_validate_adder_inputs`), type rejection for non-numeric quantum types (`_reject_unsupported_quantum_types`), optional qubit unwrapping (`_normalize_optional_input_arg`), binary string parsing, list-to-DynamicQubitArray conversion, bit extraction, and shared type aliases (`QuantumRegister`, `OptionalQubit`). This was a necessary first step. But the higher-level tooling (amending, testing, dispatching) is still scattered, and none of the adders have a shared type.
 
-This was a necessary first step. But the higher-level tooling (amending, testing, dispatching) is still scattered, and none of the adders have a shared type.
+- `ammend_inpl_adder(raw_inpl_adder, ammend_cl_int=True)` in `adder_tools.py` takes a raw adder function and wraps it so it can handle mixed input types: padding shorter registers, truncating longer ones, and encoding classical integers into temporary quantum variables. This only works in static mode; in dynamic mode the wrapper does nothing and passes the arguments through unchanged. The function also has a reversed argument order compared to the raw adders, dead code that is never reached, and no way to discover it exists unless you read the source.
 
-**`ammend_inpl_adder(raw_inpl_adder, ammend_cl_int=True)`** in `adder_tools.py` takes a raw adder function and wraps it so it can handle mixed input types: padding shorter quantum registers, truncating longer ones, and encoding classical integers into temporary quantum variables. Issues: the argument order is reversed (`(value_to_add, target)` vs the raw adder's `(a, b)`), there's a large block of dead code (a QuantumFloat-to-QuantumFloat branch gated by `and False`), and there's no way to discover this function exists unless you read the source.
+- `inpl_adder_test(inpl_adder)` in `utility.py` runs a correctness test suite on an amended adder: quantum-quantum and classical-quantum addition, both uncontrolled and controlled, for register sizes 1-6. It also checks for spurious phase introduction. The problem is that it is nowhere near the adder code and is also not compatible in dynamic mode.
 
-**`inpl_adder_test(inpl_adder)`** in `utility.py` runs a correctness test suite on an amended adder: quantum-quantum and classical-quantum addition, both uncontrolled and controlled, for register sizes 1-6. It also checks for spurious phase introduction. The problem is that it lives in a 2000+ line utility grab bag, nowhere near the adder code.
-
-**`inpl_add(qf1, qf2, ..., adder="thapliyal")`** in `ripple_carry_adder.py` is the QuantumFloat-level addition dispatcher. It handles exponent alignment, sign handling, and ancilla management, then calls an adder for the actual bit-level addition. Despite having an `adder` parameter, it only accepts `"thapliyal"`. The one place that handles QuantumFloat alignment is hardcoded to one adder.
+- `inpl_add(qf1, qf2, ..., adder="thapliyal")` in `ripple_carry_adder.py` is the `QuantumFloat`-level addition dispatcher. It handles exponent alignment, sign handling, and ancilla management, then calls an adder for the actual bit-level addition. Despite having an `adder` parameter, it only accepts `"thapliyal"`. The one place that handles `QuantumFloat` alignment is hardcoded to one adder and works only in static mode.
 
 
 
