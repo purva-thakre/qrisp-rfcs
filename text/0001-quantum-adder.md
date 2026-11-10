@@ -42,7 +42,7 @@ But, as stated previously, they are all inconsistently defined in Qrisp. This se
 | `fourier_adder` | QFT + phase rotations | $O(n)$ | $O(n^2)$ | 0 | ❌* | ❌* | ❌* | Both | 🚧 |
 | `remaud_adder` | Ladder synthesis | $O(\log^2 n)$ | $O(n \log n)$ | 0 | ❌* | ✅ | ❌* | Both | 🚧 |
 | `qcla` | Brent-Kung carry tree | $O(\log n)$ T-depth | $O(n)$ T | $O(n)$ | ❌ | ❌ | ✅ | Both | Removing |
-| `thapliyal_adder` | TR-gate ripple carry | $O(n)$ | $O(n)$ | 1 | ❌* | ❌* | ❌* | Static only (old) | 🚧 |
+| `thapliyal_adder` | TR-gate ripple carry | $O(n)$ | $O(n)$ | 1† | ❌* | ❌* | ❌* | Static only (old) | 🚧 |
 
 **Legend:**
 
@@ -50,6 +50,8 @@ But, as stated previously, they are all inconsistently defined in Qrisp. This se
     - ✅ supported today
     - ❌ not supported
     - ❌* not supported yet, planned as part of the refactor
+- Ancillas column
+    - † The Qrisp implementation of the Thapliyal adder allocates one output qubit for the carry; the paper claims 0 ancilla inputs
 - Refactored? column
     - ✅ done
     - 🚧 in progress
