@@ -1,3 +1,5 @@
+### RFC Number: High-Level Title
+
 - Feature Name: `quantum_adder`
 - Start Date: 2026-11-05
 - RFC PR: (leave empty until the pull request is opened)
