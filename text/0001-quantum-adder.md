@@ -26,7 +26,7 @@ Wrapping each adder in a `QuantumAdder` class gives them a shared type, puts the
 ## Background and current architecture
 [background-and-current-architecture]: #background-and-current-architecture
 
-Every adder does the same fundamental thing: `b += a` on generic `QuantumVariable` objects in static and/or dynamic mode. The first operand `a` can be either a classical integer or a quantum register. The second operand `b` is always a quantum register and is where the result is stored -- the addition happens in place. Beyond the two operands, an adder may accept a carry-in qubit (an incoming carry from a previous addition), a carry-out qubit (to capture overflow), and a control qubit (so the addition only happens when the control is in state `1`). The adders differ in how they compute and propagate carries through the register, and in which of these optional inputs they support.
+Every adder does the same fundamental thing: $b \mathrel{+}= a$ on generic `QuantumVariable` objects in static and/or dynamic mode. The first operand `a` can be either a classical integer or a quantum register. The second operand `b` is always a quantum register and is where the result is stored -- the addition happens in place. Beyond the two operands, an adder may accept a carry-in qubit (an incoming carry from a previous addition), a carry-out qubit (to capture overflow), and a control qubit (so the addition only happens when the control is in state `1`). The adders differ in how they compute and propagate carries through the register, and in which of these optional inputs they support.
 
 > [!NOTE]
 > Whenever a generic `QuantumVariable` is described as an input to an in-place adder, it refers only to the subtypes that allow a numerical value to be encoded in them. Thus, this document excludes `QuantumChar` and `QuantumString` from the discussion.
@@ -72,7 +72,7 @@ Currently `a` can be an integer, a `QuantumVariable`, or a list of qubits. Same 
 
 Remaud is an ancilla-free adder with polylogarithmic depth, based on [arXiv:2501.16802](https://arxiv.org/abs/2501.16802).
 
-The other adders process carries one after another (linear depth) or use extra qubits to compute them in parallel (QCLA). Remaud takes a different approach: it uses a "ladder synthesis" technique that computes the sum bits through two stages of CNOT ladders, without any ancilla qubits at all. The first ladder propagates information from the least significant bits upward, and the second ladder propagates it back down to compute the final sum. The result is O(log^2 n) depth with zero ancillas, at the cost of a higher gate count.
+The other adders process carries one after another (linear depth) or use extra qubits to compute them in parallel (QCLA). Remaud takes a different approach: it uses a "ladder synthesis" technique that computes the sum bits through two stages of CNOT ladders, without any ancilla qubits at all. The first ladder propagates information from the least significant bits upward, and the second ladder propagates it back down to compute the final sum. The result is $O(\log^2 n)$ depth with zero ancillas, at the cost of a higher gate count.
 
 `a` and `b` must be the same size. `z` is a single qubit for carry overflow. The signature is completely different from Cuccaro/Gidney: no decorator, no carry-in/carry-out/control parameters. Instead it takes an explicit carry qubit as a required third argument.
 
@@ -81,7 +81,7 @@ The other adders process carries one after another (linear depth) or use extra q
 
 ### QCLA Adder
 
-In a ripple-carry adder, each carry depends on the one before it, so the computation is sequential. QCLA computes all the carries at once using a tree structure called a Brent-Kung tree. First, it computes "propagate" and "generate" signals for each pair of input bits (does this pair produce a carry? does it pass one through?). Then it combines these signals up the tree in O(log n) steps, so the final carry at every position is known in parallel. Finally, it uses the carries to compute the sum bits. The tradeoff is that the tree needs O(n) ancilla qubits.
+In a ripple-carry adder, each carry depends on the one before it, so the computation is sequential. QCLA computes all the carries at once using a tree structure called a Brent-Kung tree. First, it computes "propagate" and "generate" signals for each pair of input bits (does this pair produce a carry? does it pass one through?). Then it combines these signals up the tree in $O(\log n)$ steps, so the final carry at every position is known in parallel. Finally, it uses the carries to compute the sum bits. The tradeoff is that the tree needs $O(n)$ ancilla qubits.
 
 a can be a QuantumFloat, a list of qubits, or an integer. b can be a QuantumFloat or a list of qubits. Internally it dispatches to cq_qcla for classical a or qq_qcla for quantum a.
 
@@ -111,15 +111,15 @@ Has `@custom_control` and full carry support.
 
 | Adder | How it adds | Depth | Ancillas | Carry/Control | Modes | Refactored? |
 |-------|------------|-------|----------|---------------|-------|-------------|
-| `cuccaro_adder` | MAJ/UMA ripple carry | O(n) | 1 | c_in, c_out, ctrl | Both | Yes |
-| `gidney_adder` | AND-based ripple carry | O(n) | O(n) | c_in, c_out, ctrl | Both | Yes |
-| `gidney_cq_venting` | Measured carry chain | O(n) | 3 (streaming) | c_in, c_out, ctrl | JASP only | Yes |
-| `fourier_adder` | QFT + phase rotations | O(n^2) gates | 0 | None | Both | In progress |
-| `remaud_adder` | Ladder synthesis | O(log^2 n) | 0 | Explicit `z` only | Both | In progress |
-| `qcla` | Brent-Kung carry tree | O(log n) | O(n) | ctrl only | Both | Removing |
-| `thapliyal_adder` | TR-gate ripple carry | O(n) | 1 | None (old API) | Static only (old) | In progress |
+| `cuccaro_adder` | MAJ/UMA ripple carry | $O(n)$ | 1 | Carry-in, carry-out, control | Both | Yes |
+| `gidney_adder` | AND-based ripple carry | $O(n)$ | $O(n)$ | Carry-in, carry-out, control | Both | Yes |
+| `gidney_cq_venting` | Measured carry chain | $O(n)$ | 3 (streaming) | Carry-in, carry-out, control | JASP only | Yes |
+| `fourier_adder` | QFT + phase rotations | $O(n^2)$ gates | 0 | None | Both | In progress |
+| `remaud_adder` | Ladder synthesis | $O(\log^2 n)$ | 0 | Explicit carry `z` only | Both | In progress |
+| `qcla` | Brent-Kung carry tree | $O(\log n)$ | $O(n)$ | Control only | Both | Removing |
+| `thapliyal_adder` | TR-gate ripple carry | $O(n)$ | 1 | None (old API) | Static only (old) | In progress |
 
-To summarize, they all do `b += a`, but there's no way to write code that says "give me any adder" without knowing which specific one you're dealing with.
+To summarize, they all do $b \mathrel{+}= a$, but there's no way to write code that says "give me any adder" without knowing which specific one you're dealing with.
 
 ### Adder Tooling
 
