@@ -287,10 +287,10 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 <p>Ideally, an in-place adder in Qrisp</p>
 <ul>
 <li>Should be compatible in both static and dynamic modes unless the adder relies on mid-circuit measurements with classically controlled corrections (for example, Gidney's venting adder), which require dynamic mode.<ul>
-<li>Note that these adders only work with integers. They don't need to worry about issues like overflow, exponent alignment, signs, or non-integer inputs (like a QuantumFloat with a non-zero exponent). Those are handled at a higher level when quantum types are dispatched (at the level of infix arithmetic). The adder documentation will state this clearly. For example, for operators like +, each type handles these issues itself before using the adder: <code>QuantumFloat.__iadd__</code> aligns exponents first, while <code>QuantumInt.__iadd__</code> passes values straight to the adder etc.</li>
+<li>Note that these adders only work with integers. They don't need to worry about issues like overflow, exponent alignment, signs, or non-integer inputs (like a <code>QuantumFloat</code> with a non-zero exponent). Those are handled at a higher level when quantum types are dispatched (at the level of infix arithmetic). The adder documentation will state this clearly. For example, for operators like +, each type handles these issues itself before using the adder: <code>QuantumFloat.__iadd__</code> aligns exponents first, while <code>QuantumInt.__iadd__</code> passes values straight to the adder etc.</li>
 </ul>
 </li>
-<li>Should follow the standard signature <code>(a, b, c_in=None, c_out=None, ctrl=None)</code> where possible, where <code>a</code> and <code>b</code> are the two integer values to be added, <code>c_in</code> and <code>c_out</code> designate the optional carry in and carry out values.<ul>
+<li>Should follow the standard signature <code>(a, b, c_in=None, c_out=None, ctrl=None)</code> where possible. Here <code>a</code> and <code>b</code> are the two integer values to be added, <code>c_in</code> and <code>c_out</code> designate the optional carry in and carry out values.<ul>
 <li>The <code>c_in</code> parameter may be a <code>Qubit</code>, a <code>QuantumVariable</code> of size 1 (including <code>QuantumBool</code>), a single-element <code>list[Qubit]</code>, or a classical value of 0 or 1. The adder computes <span class="arithmatex">\(b \leftarrow (a + b + c_{in}) \mod 2^{\text{len}(b)}\)</span>.</li>
 <li>The <code>c_out</code> parameter may be a <code>Qubit</code>, a <code>QuantumVariable</code> of size 1 (including <code>QuantumBool</code>), or a single-element <code>list[Qubit]</code>. The adder computes <span class="arithmatex">\(c_{out} \leftarrow c_{out} \oplus \text{carry}\)</span>, so that <code>c_out</code> holds the bit that would otherwise be discarded on wraparound.</li>
 <li>Adders that do not natively support carry operations declare this in their metadata; for these, <code>.amend()</code> emulates the carry logic. In this emulation, <code>c_out</code> is treated as an extra most significant bit of <code>b</code>, and <code>c_in</code> is incorporated by means of a controlled increment.</li>
@@ -302,9 +302,12 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 </ul>
 </li>
 <li>Should have a custom controlled version (<code>@custom_control</code>) compatible in both modes.</li>
-<li>Should safely handle inputs of unequal sizes. The result always fits into the second input <code>b</code>. If the sum is larger than <code>b</code> can hold, it wraps around (the result is the sum modulo <span class="arithmatex">\(2^{\text{len}(b)}\)</span>). When <code>a</code> is larger than <code>b</code>, <code>a</code> is truncated to match <code>b</code>'s size. When <code>a</code> is smaller, <code>a</code> is padded with ancilla qubits that are only used during the addition and safely removed afterward. The second input's size is never adjusted because ancilla qubits written during the addition cannot be safely removed.<ul>
-<li>For <code>QuantumModulus</code>, the result wraps at the modulus.</li>
-<li>For signed <code>QuantumFloat</code>, overflow handling needs to be decided: options include rejecting signed inputs at the adder level (handling the sign bit at a higher level), two's complement wraparound, or raising an error on overflow.</li>
+<li>Should safely handle inputs of unequal sizes.<ul>
+<li>The result always fits into the second input <code>b</code>.</li>
+<li>If the sum is larger than <code>b</code> can hold, it wraps around (the result is the sum modulo <span class="arithmatex">\(2^{\text{len}(b)}\)</span>).</li>
+<li>When <code>a</code> is larger than <code>b</code>, <code>a</code> is truncated to match <code>b</code>'s size.</li>
+<li>When <code>a</code> is smaller, <code>a</code> is padded with ancilla qubits that are only used during the addition and safely removed afterward.</li>
+<li>The second input's size is never adjusted because ancilla qubits written during the addition cannot be safely removed.</li>
 </ul>
 </li>
 </ul>
@@ -382,6 +385,9 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 </li>
 <li>
 <p><strong>What should the default adder be?</strong> When no adder is passed to <code>inpl_add</code>, it needs to pick one. The choice depends on what tradeoffs matter most by default (depth vs. ancilla count vs. gate count) and whether the default should vary by execution mode or input type.</p>
+</li>
+<li>
+<p><strong>How should <code>QuantumModulus</code> overflow be handled?</strong> For example, for <code>QuantumModulus</code>, the result wraps at the modulus.</p>
 </li>
 </ol>
 <h3 id="qubitarray-integration">QubitArray integration</h3>
