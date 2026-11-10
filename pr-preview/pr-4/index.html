@@ -108,7 +108,7 @@ inherits from <code>QuantumFloat</code> directly, which forces it to suppress fl
 that would produce incorrect results on modular integers.</p>
 <p>This RFC introduces <code>QuantumInt</code> as a subclass of <code>QuantumFloat</code> with <code>exponent</code> fixed
 to 0, and re-parents <code>QuantumModulus</code> under <code>QuantumInt</code>. The type hierarchy becomes:</p>
-<div class="highlight"><pre><span></span><code>    <span class="n">QuantumVariable</span> <span class="err">→</span> <span class="n">QuantumFloat</span> <span class="err">→</span> <span class="n">QuantumInt</span> <span class="err">→</span> <span class="n">QuantumModulus</span>
+<div class="highlight"><pre><span></span><code>QuantumVariable → QuantumFloat → QuantumInt → QuantumModulus
 </code></pre></div>
 <p>This decouples integer arithmetic from floating-point arithmetic, gives modular types a
 clean base that doesn't carry float-only operations, and lets adders and other integer
