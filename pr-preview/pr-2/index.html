@@ -273,9 +273,11 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 <h3 id="adder-tooling">Adder Tooling</h3>
 <p>The low-level helpers that were duplicated across adder files have been moved into a shared <code>adder_utilities.py</code> module. This includes shared input validation (<code>_validate_adder_inputs</code>), type rejection for non-numeric quantum types (<code>_reject_unsupported_quantum_types</code>), optional qubit unwrapping (<code>_normalize_optional_input_arg</code>), binary string parsing, list-to-DynamicQubitArray conversion, bit extraction, and shared type aliases (<code>QuantumRegister</code>, <code>OptionalQubit</code>). This was a necessary first step. But the higher-level tooling (amending, testing, dispatching) is still scattered, and none of the adders have a shared type.</p>
 <ul>
-<li>
-<p><code>ammend_inpl_adder(raw_inpl_adder, ammend_cl_int=True)</code> in <code>adder_tools.py</code> takes a raw adder function and wraps it so it can handle mixed input types: padding shorter registers, truncating longer ones, and encoding classical integers into temporary quantum variables. This only works in static mode; in dynamic mode the wrapper does nothing and passes the arguments through unchanged. The function also has a reversed argument order compared to the raw adders, dead code that is never reached, and no way to discover it exists unless you read the source.</p>
-</li>
+<li><code>ammend_inpl_adder(raw_inpl_adder, ammend_cl_int=True)</code> in <code>adder_tools.py</code> takes a raw adder function and wraps it so it can handle mixed input types: padding shorter registers, truncating longer ones, and encoding classical integers into temporary quantum variables. This only works in static mode; in dynamic mode the wrapper does nothing and passes the arguments through unchanged. The function also has a reversed argument order compared to the raw adders, dead code that is never reached, and no way to discover it exists unless you read the source.</li>
+</ul>
+<div class="alert warning"><p class="alert-title">Warning</p><p>The existing function is spelled <code>ammend_inpl_adder</code> (double m). This will be corrected to <code>amend</code> as part of this refactoring. All references to <code>ammend</code> in this document use the current spelling for clarity, but the final implementation will use <code>amend</code> everywhere.</p></div>
+
+<ul>
 <li>
 <p><code>inpl_adder_test(inpl_adder)</code> in <code>utility.py</code> runs a correctness test suite on an amended adder: quantum-quantum and classical-quantum addition, both uncontrolled and controlled, for register sizes 1-6. It also checks for spurious phase introduction. The problem is that it is nowhere near the adder code and is also not compatible in dynamic mode.</p>
 </li>
@@ -296,7 +298,9 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 <li>Adders that do not natively support carry operations declare this in their metadata; for these, <code>.amend()</code> emulates the carry logic. In this emulation, <code>c_out</code> is treated as an extra most significant bit of <code>b</code>, and <code>c_in</code> is incorporated by means of a controlled increment.</li>
 </ul>
 </li>
-<li>Should accept all types that allow an end user to encode an int or a float value into the quantum type: <code>QuantumVariable</code>, <code>QuantumFloat</code>, <code>QuantumInt</code> (see the next RFC where <code>QuantumFloat</code> is going to be split into <code>QuantumInt</code> and <code>QuantumFloat</code>), <code>QuantumModulus</code>, <code>QuantumBool</code>, <code>DynamicQubitArray</code>, and <code>list[Qubit]</code>. Note that <code>QuantumBool</code> is a special case because its size is fixed at 1 qubit and cannot be set by the user, so it can only ever represent 0 or 1.<ul>
+<li>Should accept all types that allow an end user to encode an int or a float value into the quantum type: <code>QuantumVariable</code>, <code>QuantumFloat</code>, <code>QuantumInt</code> (see the next RFC where <code>QuantumFloat</code> is going to be split into <code>QuantumInt</code> and <code>QuantumFloat</code>), <code>QuantumModulus</code>, <code>QuantumBool</code>, <code>DynamicQubitArray</code>, and <code>list[Qubit]</code>.
+    &gt; [!NOTE]
+    &gt; <code>QuantumBool</code> is a special case because its size is fixed at 1 qubit and cannot be set by the user, so it can only ever represent 0 or 1.<ul>
 <li>The first argument can also be a classical value: <code>int</code>, <code>np.integer</code>, <code>str</code> (binary string), <code>BigInteger</code>, or a traced JAX scalar in dynamic mode.</li>
 <li>Non-numeric quantum types <code>QuantumChar</code> and <code>QuantumString</code> should be rejected as either input.</li>
 </ul>
@@ -314,8 +318,6 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 <li>Should cleanup any ancillas that were allocated internally in an adder to compute the in-place addition.</li>
 <li>Should not leave behind any spurious phases on the output. </li>
 </ul>
-<div class="alert warning"><p class="alert-title">Warning</p><p>The existing function is spelled <code>ammend_inpl_adder</code> (double m). This will be corrected to <code>amend</code> as part of this refactoring. All references to <code>ammend</code> in this document use the current spelling for clarity, but the final implementation will use <code>amend</code> everywhere.</p></div>
-
 <h3 id="class-definition">Class definition</h3>
 <p>The <code>QuantumAdder</code> class is intentionally thin. It wraps an existing adder function without changing how that function behaves when called. The wrapper just gives the function a type you can check against and puts the tooling (amending, verification) in a place where users can find it.</p>
 <div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">functools</span>
