@@ -304,14 +304,13 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 <li>The first argument can also be a classical value: <code>int</code>, <code>np.integer</code>, <code>str</code> (binary string), <code>BigInteger</code>, or a traced JAX scalar in dynamic mode.</li>
 <li>Non-numeric quantum types <code>QuantumChar</code> and <code>QuantumString</code> should be rejected as either input.</li>
 </ul>
-<div class="alert note"><p class="alert-title">Note</p><p><code>QuantumBool</code> is a special case because its size is fixed at 1 qubit and cannot be set by the user, so it can only ever represent 0 or 1.</p></div>
+<div class="alert note"><p class="alert-title">Note</p><p><code>QuantumBool</code> is a special case as an input because its size is fixed at 1 qubit and cannot be set by the user, so it can only ever represent 0 or 1.</p></div>
 
 </li>
 <li>
 <p>Should have a custom controlled version (<code>@custom_control</code>) compatible in both modes.</p>
 </li>
-<li>Should safely handle inputs of unequal sizes.<ul>
-<li>The result always fits into the second input <code>b</code>.</li>
+<li>Should safely handle inputs of unequal sizes as the result always has to fit into the second input <code>b</code>.<ul>
 <li>If the sum is larger than <code>b</code> can hold, it wraps around (the result is the sum modulo <span class="arithmatex">\(2^{\text{len}(b)}\)</span>).</li>
 <li>When <code>a</code> is larger than <code>b</code>, <code>a</code> is truncated to match <code>b</code>'s size.</li>
 <li>When <code>a</code> is smaller, <code>a</code> is padded with ancilla qubits that are only used during the addition and safely removed afterward.</li>
@@ -343,32 +342,45 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
         <span class="n">ammended</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ammend</span><span class="p">()</span>
         <span class="k">return</span> <span class="n">inpl_adder_test</span><span class="p">(</span><span class="n">ammended</span><span class="p">)</span>
 </code></pre></div>
-<p>When you call a <code>QuantumAdder</code> instance, it just calls the underlying function. Nothing about the adder's behavior changes at the call site. <code>functools.update_wrapper</code> copies over <code>__name__</code>, <code>__doc__</code>, and <code>__module__</code> from the raw function, so <code>help(cuccaro_adder)</code> still shows the original docstring and introspection works as expected.</p>
-<p>The <code>.ammend()</code> method wraps the raw adder through <code>ammend_inpl_adder</code> so it can handle mixed input types (different-sized registers, classical integers, etc.). The <code>.verify()</code> method ammends the adder first, then runs it through the standard <code>inpl_adder_test</code> correctness suite. This way a user who writes a custom adder doesn't have to know about either of those functions; they just call <code>.verify()</code> and get a pass/fail.</p>
-<p>Both <code>ammend_inpl_adder</code> and <code>inpl_adder_test</code> are being heavily refactored as part of this work. The current implementations are static-mode only, have reversed argument orders, and contain dead code. The refactored versions will work in both static and dynamic modes, follow the standard <code>(a, b)</code> argument order, and align with the <code>QuantumAdder</code> interface. The class definition above shows the intended API; the internals of <code>.ammend()</code> and <code>.verify()</code> will change significantly.</p>
+<p>When you call a <code>QuantumAdder</code> instance, it just calls the underlying function. Nothing about the adder's behavior changes at the call site. Wrapping an adder in QuantumAdder does not change how it behaves when called. For example. existing code that calls <code>cuccaro_adder(a, b)</code> keeps working exactly as before.</p>
+<p>The <code>.ammend()</code> method wraps the raw adder through <code>ammend_inpl_adder</code> so it can handle mixed input types (different-sized registers, classical integers, etc.). The <code>.verify()</code> method ammends the adder first, then runs it through the standard <code>inpl_adder_test</code> correctness suite. This way a user who writes a custom adder doesn't have to know about either of those functions; they just call <code>.verify()</code> and get a pass/fail acknowledging if their custom adder indeed works as expected.</p>
+<p>Both <code>ammend_inpl_adder</code> and <code>inpl_adder_test</code> are being heavily refactored as part of this work. The current implementations are static-mode only, have reversed argument orders, and contain dead code. The refactored versions will work in both static and dynamic modes, follow the standard input argument order, and align with the <code>QuantumAdder</code> interface. The class definition above shows the intended API; the internals of <code>.ammend()</code> and <code>.verify()</code> will change significantly.</p>
 <h3 id="using-as-a-decorator">Using as a decorator</h3>
-<p>For users writing a new adder from scratch, <code>QuantumAdder</code> works as a decorator:</p>
+<p>For users writing a new custom adder from scratch, <code>QuantumAdder</code> works as a decorator:</p>
 <div class="highlight"><pre><span></span><code><span class="nd">@QuantumAdder</span>
 <span class="k">def</span><span class="w"> </span><span class="nf">my_custom_adder</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">c_in</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">c_out</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">ctrl</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
     <span class="o">...</span>
 </code></pre></div>
 <p>This is the intended way to define a new adder going forward. The decorator wraps the function at definition time, so <code>my_custom_adder</code> is immediately a <code>QuantumAdder</code> instance with <code>.ammend()</code> and <code>.verify()</code> available. You can still call it like a normal function.</p>
+<p>If the adder also needs <code>@custom_control</code> or another decorator, the stacking order matters: <code>@QuantumAdder</code> should be the outermost decorator so it wraps the fully decorated function. Alternatively, users can apply it post-hoc the same way the built-in adders do:</p>
+<div class="highlight"><pre><span></span><code><span class="nd">@custom_control</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">my_custom_adder</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">c_in</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">c_out</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">ctrl</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="o">...</span>
+
+<span class="n">my_custom_adder</span> <span class="o">=</span> <span class="n">QuantumAdder</span><span class="p">(</span><span class="n">my_custom_adder</span><span class="p">)</span>
+</code></pre></div>
 <h3 id="wrapping-existing-adders">Wrapping existing adders</h3>
 <p>The built-in adders already have their own decorators (several use <code>@custom_control</code>). Stacking <code>@QuantumAdder</code> on top of <code>@custom_control</code> could cause decorator interaction issues, so wrapping is applied post-hoc at the bottom of each adder's module instead:</p>
 <div class="highlight"><pre><span></span><code><span class="n">cuccaro_adder</span> <span class="o">=</span> <span class="n">QuantumAdder</span><span class="p">(</span><span class="n">cuccaro_adder</span><span class="p">)</span>
 </code></pre></div>
-<p>This reassigns the module-level name to the wrapped version. Existing imports that reference <code>cuccaro_adder</code> by name pick up the <code>QuantumAdder</code> instance, and since <code>__call__</code> delegates directly, all existing call sites keep working. The same pattern applies to every built-in adder that is being kept.</p>
+<p>This reassigns the module-level name to the wrapped version. Since <code>QuantumAdder</code> is callable, reassigning the module-level name means every existing import and call site keeps working without changes. The same pattern is used to wrap all the other built-in adders.</p>
 <h3 id="classical-quantum-only-adders">Classical-quantum-only adders</h3>
 <p>Most adders accept both quantum-quantum and classical-quantum input combinations. The Gidney Venting adder is the exception: it only works with classical-quantum inputs (the first argument must be an integer or <code>BigInteger</code>, never a quantum register). The <code>QuantumAdder</code> interface needs to handle this gracefully rather than letting the user hit a confusing error deep in the carry-venting logic.</p>
-<p>The solution is to let each adder declare what it supports up front, so downstream code can check before calling and either pick a different adder or raise a clear error message.</p>
+<p>The solution is to let each adder declare what it supports up front via metadata, so downstream code can check before calling and either pick a different adder or raise a clear error message.</p>
 <h4 id="capability-metadata">Capability metadata</h4>
 <p>Each <code>QuantumAdder</code> instance carries metadata that describes what it can do:</p>
+<div class="highlight"><pre><span></span><code><span class="n">gidney_cq_venting_adder</span> <span class="o">=</span> <span class="n">QuantumAdder</span><span class="p">(</span>
+    <span class="n">gidney_cq_venting_adder</span><span class="p">,</span>
+    <span class="n">supports_qq</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+    <span class="n">modes</span><span class="o">=</span><span class="s2">&quot;dynamic&quot;</span>
+<span class="p">)</span>
+</code></pre></div>
 <ul>
 <li><code>supports_qq</code>: whether the adder accepts quantum-quantum input combinations. True for most adders, False for Gidney Venting.</li>
 <li><code>modes</code>: which execution modes the adder works in: <code>"static"</code>, <code>"dynamic"</code>, or <code>"both"</code>.</li>
 </ul>
-<p>This metadata is set when the adder is wrapped. For the built-in adders it's known at definition time. For a custom adder, the user can pass it as keyword arguments to <code>QuantumAdder</code> or let it default to the most permissive setting (<code>supports_qq=True</code>, <code>modes="both"</code>).</p>
-<p>The point is that any function that dispatches to an adder can inspect these fields at runtime and make an informed decision, rather than calling the adder and hoping it works.</p>
+<p>For the built-in adders, the metadata is known upfront and set when the adder is wrapped. For a custom adder, the user declares it as keyword arguments to <code>QuantumAdder</code>. If they don’t, it defaults to the most permissive setting <code>(supports_qq=True, modes="both")</code>.</p>
+<p>This lets any function that dispatches to an adder (like <code>inpl_add</code>) check these fields before calling it. If the user passes an adder that doesn’t support the current execution mode or input combination, the dispatcher raises a clear error instead of letting the adder fail deep in its internals with an unhelpful traceback.</p>
 <h3 id="adder-selection">Adder selection</h3>
 <p>Today, <code>inpl_add</code> is hardcoded to call <code>thapliyal_procedure</code>. With <code>QuantumAdder</code> and capability metadata, it can accept any adder and validate it against the current context. If no adder is passed, it picks a sensible default. If the passed adder doesn't support the current execution mode or the input combination (for example, passing Gidney Venting for a quantum-quantum addition), it raises an error that explains what went wrong and which adders would work instead.</p>
 <p>This also opens the door to smarter defaults in the future. For instance, if both inputs are classical-quantum and the execution mode is dynamic, the dispatcher could prefer Gidney Venting for its low qubit cost. But for now, the goal is just to accept any <code>QuantumAdder</code> and validate it, not to build a full auto-selection heuristic.</p>
@@ -379,15 +391,12 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 <p>When no adder is passed, <code>inpl_add</code> picks a default based on the capability metadata: what execution mode is active, whether the inputs are classical-quantum or quantum-quantum, and what each adder supports. The user can override this by passing a specific adder, and the dispatcher validates that it's compatible with the current context before calling it.</p>
 <p>The same <code>adder</code> parameter propagates to higher-level operations like <code>multiply</code>, comparisons, and Montgomery reduction. Each of these ultimately calls <code>inpl_add</code> somewhere, and the adder choice flows down through the stack. A user who wants Gidney everywhere can pass it once at the top level of a quantum type, and every addition underneath uses it.</p>
 <h3 id="input-validation">Input validation</h3>
-<p>Input validation happens in two layers. The shared <code>_validate_adder_inputs(a, b)</code> function in <code>adder_utilities.py</code> handles the checks that apply to every adder: is <code>b</code> a quantum type? Is <code>a</code> a valid classical or quantum type? Are non-numeric types like <code>QuantumChar</code> and <code>QuantumString</code> rejected? This function is called by every adder, either directly or through the amending wrapper.</p>
-<p>The higher-level checks that depend on specific quantum types are handled by those types themselves, not by the adder or <code>inpl_add</code>. For example, <code>QuantumFloat.__iadd__</code> handles exponent alignment before calling the adder, and <code>QuantumModulus</code> handles modular reduction. By the time the adder is called, it only sees integer-valued qubit registers and classical values. <code>inpl_add</code> simply does addition of integer values.</p>
+<p>Input validation happens in two layers. The shared <code>_validate_adder_inputs(a, b)</code> function in <code>adder_utilities.py</code> handles the checks that apply to every adder: is <code>b</code> a quantum type? Is <code>a</code> a valid classical or quantum type? Are non-numeric types like <code>QuantumChar</code> and <code>QuantumString</code> rejected?</p>
+<p>Everything above that is the responsibility of the quantum type, not the adder. Concerns like exponent alignment, sign handling, precision validation, and modular reduction are handled by each type’s own <code>__iadd__</code> before it dispatches to the adder. By the time the adder is called, it only sees integer-valued qubit registers and classical values. The details of what each type needs to do before calling the adder are left to the RFCs that refactor the methods for those types.</p>
 <h2 id="unresolved-questions">Unresolved questions</h2>
 <ol>
 <li>
 <p><strong>How should the Fourier adder's <code>perform_QFT</code> flag work within the <code>QuantumAdder</code> interface?</strong> The flag lets users skip the QFT/inverse-QFT when chaining multiple additions in the Fourier basis. This is adder-specific state that doesn't fit the generic signature. Options: make it a parameter on the <code>QuantumAdder</code> instance, have the Fourier adder detect internally whether <code>b</code> is already in the Fourier basis, or handle it outside the adder entirely.</p>
-</li>
-<li>
-<p><strong>How should signed <code>QuantumFloat</code> overflow be handled?</strong> The proposed design states that type-specific concerns like signs are handled at the type level, not by the adder. But the overflow behavior still needs to be decided: should signed inputs be rejected at the adder level (with sign handling done entirely in <code>QuantumFloat.__iadd__</code>), should the adder do two's complement wraparound, or should it raise an error on overflow?</p>
 </li>
 <li>
 <p><strong>What verification strategy works in both static and dynamic mode?</strong> The current <code>inpl_adder_test</code> relies on statevector inspection, which is static-only. The refactored <code>.verify()</code> needs a single test path that works in both modes, consistent with the project's bias towards mode-agnostic code. Measurement-based checking is one option, but it trades exactness for statistical confidence.</p>
@@ -395,16 +404,20 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 <li>
 <p><strong>What should the default adder be?</strong> When no adder is passed to <code>inpl_add</code>, it needs to pick one. The choice depends on what tradeoffs matter most by default (depth vs. ancilla count vs. gate count) and whether the default should vary by execution mode or input type.</p>
 </li>
-<li>
-<p><strong>How should <code>QuantumModulus</code> overflow be handled?</strong> For example, for <code>QuantumModulus</code>, the result wraps at the modulus.</p>
-</li>
 </ol>
 <h3 id="qubitarray-integration">QubitArray integration</h3>
-<p>There is a proposal to introduce a common <code>QubitArray</code> base class that unifies the static <code>list[Qubit]</code> and the dynamic <code>DynamicQubitArray</code> into a single type (see Raphael's proposal from Community Day). When that work lands:</p>
+<p>There is a proposal to introduce a common <code>QubitArray</code> base class that both static
+and dynamic modes share, giving them a uniform interface for <code>.size</code>, indexing, and
+slicing (see Raphael's typing proposal from Community Day). When that work lands:</p>
 <ul>
-<li><code>_validate_adder_inputs</code> simplifies from an isinstance chain to a check against <code>QubitArray | int</code>.</li>
-<li>The adder type signature becomes <code>(a: QubitArray | int, b: QubitArray)</code>, which type checkers can verify statically.</li>
-<li><code>ammend_inpl_adder</code>'s size-padding logic can use <code>QubitArray.size</code> instead of branching on <code>list</code> vs. <code>DynamicQubitArray</code>.</li>
+<li><code>_validate_adder_inputs</code> simplifies from an isinstance chain to a check against
+  <code>QubitArray | int</code>.</li>
+<li>The adder type signature becomes <code>(a: QubitArray | int, b: QubitArray)</code>, which
+  type checkers can verify statically.</li>
+<li><code>ammend_inpl_adder</code>'s size-padding logic can use <code>QubitArray.size</code> instead of
+  branching on <code>list</code> vs. <code>DynamicQubitArray</code>.</li>
+<li>Finally, the typing aliases for adder inputs currently in the shared helpers folder become
+  redundant and can be removed.</li>
 </ul>
 <p>None of this blocks the <code>QuantumAdder</code> class. The class and the validation function work with the register types Qrisp has today and will work with <code>QubitArray</code> when it arrives.</p>
 <h3 id="additional-adders">Additional adders</h3>
@@ -417,19 +430,19 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 <p><strong>DKRS adder</strong> (Draper-Kutin-Rains-Svore, <a href="https://arxiv.org/abs/quant-ph/0406142">arXiv:quant-ph/0406142</a>). A logarithmic-depth adder using O(n) ancillas. Once QCLA is removed, Qrisp will have no log-depth adder; DKRS would fill that gap with a cleaner construction.</p>
 </li>
 </ul>
-<p>Neither adder is needed for the initial <code>QuantumAdder</code> class. They can be implemented later and wrapped with <code>@QuantumAdder</code> the same way the existing adders are.</p>
+<p>Neither adder is needed for the initial <code>QuantumAdder</code> class. They can be implemented later and wrapped with <code>@QuantumAdder</code> the same way the existing adders are. For this reason, these adders will be opened up for contributions from community members. </p>
 <h2 id="public-api-impact">Public API impact</h2>
 <h3 id="additions">Additions</h3>
 <ul>
 <li><code>QuantumAdder</code> class: new public type for wrapping adder functions.</li>
-<li><code>.ammend()</code> and <code>.verify()</code> methods on every wrapped adder.</li>
+<li><code>.ammend()</code> and <code>.verify()</code> methods on every wrapped adder with <code>ammend</code> renamed to <code>amend</code>.</li>
 <li><code>isinstance(x, QuantumAdder)</code> for type checking.</li>
 <li>Downstream functions (<code>inpl_add</code>, <code>multiply</code>, etc.) gain an optional <code>adder</code> parameter.</li>
 </ul>
 <h3 id="changes">Changes</h3>
 <ul>
-<li>Each built-in adder (<code>cuccaro_adder</code>, <code>gidney_adder</code>, etc.) becomes a <code>QuantumAdder</code> instance instead of a plain function. Since <code>QuantumAdder.__call__</code> delegates directly, existing code that calls these adders continues to work.</li>
-<li><code>inpl_add</code> accepts any <code>QuantumAdder</code> instead of only <code>"thapliyal"</code>.</li>
+<li>Each built-in adder (<code>cuccaro_adder</code>, <code>gidney_adder</code>, etc.) becomes a <code>QuantumAdder</code> instance instead of a plain function. Since <code>QuantumAdder.__call__</code> just passes arguments through to the wrapped function, existing code that calls these adders does not need to change.</li>
+<li><code>inpl_add</code> accepts any in-place <code>QuantumAdder</code> instead of only <code>"thapliyal"</code>.</li>
 </ul>
 <h3 id="removals">Removals</h3>
 <ul>
