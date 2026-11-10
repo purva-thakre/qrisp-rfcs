@@ -94,7 +94,30 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 .highlight .vg { color: #19177C } /* Name.Variable.Global */
 .highlight .vi { color: #19177C } /* Name.Variable.Instance */
 .highlight .vm { color: #19177C } /* Name.Variable.Magic */
-.highlight .il { color: #666 } /* Literal.Number.Integer.Long */</style><script>MathJax={tex:{inlineMath:[['\\(','\\)']],displayMath:[['\\[','\\]']]}};</script><script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script><h1 id="rfc-002-split-the-quantumfloat-class-into-quantumint-and-quantumfloat">RFC 002: Split the <code>QuantumFloat</code> class into <code>QuantumInt</code> and <code>QuantumFloat</code></h1>
+.highlight .il { color: #666 } /* Literal.Number.Integer.Long */</style><script>MathJax={tex:{inlineMath:[['\\(','\\)']],displayMath:[['\\[','\\]']]}};</script><script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script><h3 id="rfc-number-high-level-title">RFC Number: High-Level Title</h3>
+<ul>
+<li>Feature Name: <code>quantum_adder</code></li>
+<li>Start Date: 2026-11-05</li>
+<li>RFC PR: (leave empty until the pull request is opened)</li>
+<li>Qrisp Issue: (link the tracking issue, if one exists)</li>
+</ul>
+<h2 id="summary">Summary</h2>
+<p>Introduce a <code>QuantumAdder</code> abstraction that provides a single interface for adding quantum values, so arithmetic code can depend on an adder implementation rather than a concrete addition routine. This RFC is self-contained and uncontroversial.</p>
+<h2 id="motivation">Motivation</h2>
+<p>TODO: What problem does the adder abstraction solve, who is affected, and why is it worth doing now?</p>
+<h2 id="background-and-current-architecture">Background and current architecture</h2>
+<p>TODO: Describe the current addition code paths, the duplication or inconsistency they cause, and the constraints the design must account for.</p>
+<h2 id="proposed-design">Proposed design</h2>
+<p>TODO: Define the interface, how implementations are selected, and how it lowers to circuits. Include examples and corner cases.</p>
+<h2 id="unresolved-questions">Unresolved questions</h2>
+<ul>
+<li>TODO</li>
+</ul>
+<h2 id="future-possibilities">Future possibilities</h2>
+<p>TODO</p>
+<h2 id="public-api-impact">Public API impact</h2>
+<p>TODO: Describe additions, changes, or removals in Qrisp's public API, with migration guidance. Write "None" if this is internal only.</p>
+<h1 id="rfc-002-split-the-quantumfloat-class-into-quantumint-and-quantumfloat">RFC 002: Split the <code>QuantumFloat</code> class into <code>QuantumInt</code> and <code>QuantumFloat</code></h1>
 <ul>
 <li>Feature Name: <code>QuantumInt</code> Class</li>
 <li>Start Date: 2026-11-10</li>
