@@ -29,20 +29,20 @@ Wrapping each adder in a `QuantumAdder` class gives them a shared type, puts the
 > [!NOTE]
 > Whenever a generic `QuantumVariable` is described as an input to an in-place adder, it refers only to the subtypes that allow a numerical value to be encoded in them. Thus, this document excludes `QuantumChar` and `QuantumString` from the discussion.
 
-Every adder does the same fundamental thing: $b \mathrel{+}= a$ on generic `QuantumVariable` objects in static and/or dynamic mode. The first operand `a` can be either a classical integer or a `QuantumVariable`. The second operand `b` is always a `QuantumVariable` and is where the result is stored such that the addition happens in place. Beyond the two operands, an adder may accept a carry-in qubit (an incoming carry from a previous addition), a carry-out qubit (to capture overflow), and a control qubit (so the addition only happens when the control `QuantumVariable` is in state `1`). The adders differ in how they compute and propagate carries through the qubit chain, and in which of these optional inputs they support.
+Every adder does the same fundamental thing: $b \mathrel{+}= a$ on generic `QuantumVariable` objects in static and/or dynamic mode. The first operand `a` can be either a classical integer, a `BigInteger` or a `QuantumVariable`. The second operand `b` is always a `QuantumVariable` and is where the result is stored such that the addition happens in place. Beyond the two operands, an adder may accept a carry-in qubit (an incoming carry from a previous addition), a carry-out qubit (to capture overflow), and a control qubit (so the addition only happens when the control `QuantumVariable` is in state `1`). The adders differ in how they compute and propagate carries through the qubit chain, and in which of these optional inputs they support.
 
 But, as stated previously, they are all inconsistently defined in Qrisp. This section provides a description of how each in-place adder works and where it stands in terms of moving towards a unified interface. The Cuccaro and Gidney adders were refactored recently and now serve as the reference design that the other adders are being brought in line with (except the venting based Gidney adder). The Thapliyal adder, Remaud adder, and Fourier adder all have open PRs that refactor them to match the Cuccaro/Gidney interface.
 
 
-| Adder | How it adds | Depth | Gates | Ancillas | Carry-in | Carry-out | Control | Modes | Refactored? |
-|-------|------------|-------|-------|----------|:--------:|:---------:|:-------:|-------|-------------|
-| `cuccaro_adder` | MAJ/UMA ripple carry | $O(n)$ | $O(n)$ | 1 | ✅ | ✅ | ✅ | Both | ✅ |
-| `gidney_adder` | AND-based ripple carry | $O(n)$ | $O(n)$ | $O(n)$ | ✅ | ✅ | ✅ | Both | ✅ |
-| `gidney_cq_venting` | Measured carry chain | $O(n)$ | $O(n)$ | 3 clean | ✅ | ✅ | ✅ | JASP only | ✅ |
-| `fourier_adder` | QFT + phase rotations | $O(n)$ | $O(n^2)$ | 0 | ❌* | ❌* | ❌* | Both | 🚧 |
-| `remaud_adder` | Ladder synthesis | $O(\log^2 n)$ | $O(n \log n)$ | 0 | ❌* | ✅ | ❌* | Both | 🚧 |
-| `qcla` | Brent-Kung carry tree | $O(\log n)$ T-depth | $O(n)$ T | $O(n)$ | ❌ | ❌ | ✅ | Both | Removing |
-| `thapliyal_adder` | TR-gate ripple carry | $O(n)$ | $O(n)$ | 1† | ❌* | ❌* | ❌* | Static only (old) | 🚧 |
+| Adder | How it adds | Depth | Ancillas | Carry-in | Carry-out | Control | Modes | Refactored? |
+|-------|------------|-------|----------|:--------:|:---------:|:-------:|-------|-------------|
+| `cuccaro_adder` | MAJ/UMA ripple carry | $O(n)$ | 1 | ✅ | ✅ | ✅ | Both | ✅ |
+| `gidney_adder` | AND-based ripple carry | $O(n)$ | $O(n)$ | ✅ | ✅ | ✅ | Both | ✅ |
+| `gidney_cq_venting` | Measured carry chain | $O(n)$ | 3 clean | ✅ | ✅ | ✅ | JASP only | ✅ |
+| `fourier_adder` | QFT + phase rotations | $O(n)$ | 0 | ❌* | ❌* | ❌* | Both | 🚧 |
+| `remaud_adder` | Ladder synthesis | $O(\log^2 n)$ | 0 | ❌* | ✅ | ❌* | Both | 🚧 |
+| `qcla` | Brent-Kung carry tree | $O(\log n)$ T-depth | $O(n)$ | ❌ | ❌ | ✅ | Both | Removing |
+| `thapliyal_adder` | TR-gate ripple carry | $O(n)$ | 1† | ❌* | ❌* | ❌* | Static only (old) | 🚧 |
 
 **Legend:**
 
@@ -67,6 +67,8 @@ The adder walks through the register one bit at a time, from least significant t
 
 Cuccaro is the simplest adder in Qrisp: linear depth (proportional to the number of qubits), one ancilla qubit for the carry chain. Input `a` can be an integer, a binary string, a `BigInteger`, or a `QuantumVariable`. Input `b` must be a `QuantumVariable`. When `a` is classical, the Qrisp Cuccaro adder function encodes the value into a temporary quantum variable internally.
 
+The paper reports a depth of $2n + O(1)$, using $2n + O(1)$ Toffoli gates, $5n + O(1)$ CNOT gates, and $2n + O(1)$ negations, all with a single carry ancilla.
+
 It has the `@custom_control` decorator, supports carry-in, carry-out, and control qubits, and works in both static and dynamic (JASP) modes. This is the reference implementation that other adders are being refactored to match.
 
 ### Gidney Adder
@@ -79,6 +81,8 @@ The big advantage shows up when `a` is classical: the adder uses a semi-classica
 
 The Gidney adder has the same $O(n)$ depth as the Cuccaro adder for quantum-quantum addition, but it uses $O(n)$ carry ancillae (the carry chain keeps one ancilla per bit) rather than Cuccaro's single ancilla. For classical-quantum addition it's more efficient because it avoids the temporary encoding.
 
+In detail, the paper's $n$-bit adder has a T-count of $4n + O(1)$ (specifically $4n - 4$), a measurement depth of $2n + O(1)$ (specifically $2n - 2$), and requires $n$ ancillae. Each temporary logical-AND costs 4 T gates and has measurement depth 2, and its uncomputation costs no T gates.
+
 The adder has `@custom_control`, full carry support, and works in both modes.
 
 ### Fourier Adder
@@ -86,6 +90,8 @@ The adder has `@custom_control`, full carry support, and works in both modes.
 Fourier is a Draper-style adder that works in the Fourier basis, based on [arXiv:quant-ph/0008033](https://arxiv.org/abs/quant-ph/0008033).
 
 Instead of computing carries like the other adders, this one transforms `b` into the Fourier basis using a Quantum Fourier Transform (QFT). In the Fourier basis, addition becomes a series of phase rotations. Each qubit of `a` adds a small phase to each qubit of `b`, and the phases add up to the correct sum. Then the inverse QFT transforms `b` back to the computational basis. No ancillas needed, but the number of phase gates is quadratic (every qubit of `a` interacts with every qubit of `b`).
+
+The exact QFT-based addition uses $O(n^2)$ gates. The paper notes that the approximate QFT reduces this to $O(n \log n)$ operations, and that with enough parallelism ($n/2$ simultaneous two-qubit gates) the circuit runs in about $n + 1$ time slices, or $O(\log n)$ time slices with the AQFT.
 
 The `perform_QFT` flag lets you skip the QFT/inverse-QFT when you're chaining multiple additions. You apply the QFT once at the start, do all your additions in the Fourier basis, and apply the inverse QFT once at the end.
 
@@ -100,6 +106,8 @@ Remaud is an ancilla-free adder with polylogarithmic depth, based on [arXiv:2501
 
 The other adders process carries one after another (linear depth) or use extra qubits to compute them in parallel (QCLA). Remaud takes a different approach: it uses a "ladder synthesis" technique that computes the sum bits through two stages of CNOT ladders, without any ancilla qubits at all. The first ladder propagates information from the least significant bits upward, and the second ladder propagates it back down to compute the final sum. The result is $O(\log^2 n)$ depth with zero ancillas, at the cost of a higher gate count.
 
+Concretely, the paper replaces a length-$n$ CNOT ladder with a circuit of $O(\log n)$ depth and a length-$n$ Toffoli ladder with one of $O(\log^2 n)$ depth, giving an $O(n \log n)$ (linearithmic) gate count overall.
+
 `a` and `b` must be the same size. `z` is a single qubit for carry overflow. The signature is completely different from Cuccaro/Gidney: no decorator, no carry-in/carry-out/control parameters. Instead it takes an explicit carry qubit as a required third argument.
 
 > [!IMPORTANT]
@@ -108,6 +116,8 @@ The other adders process carries one after another (linear depth) or use extra q
 ### QCLA Adder
 
 In a ripple-carry adder, each carry depends on the one before it, so the computation is sequential. QCLA computes all the carries at once using a tree structure called a Brent-Kung tree. First, it computes "propagate" and "generate" signals for each pair of input bits (does this pair produce a carry? does it pass one through?). Then it combines these signals up the tree in $O(\log n)$ steps, so the final carry at every position is known in parallel. Finally, it uses the carries to compute the sum bits. The tradeoff is that the tree needs $O(n)$ ancilla qubits.
+
+The higher-radix QCLA paper gives a T-depth of $O(r) + O(\log(n/r))$, a T-count of $O(n) + O(n/r)$, and a qubit count of $O(n) - O(n/r)$, where $r$ is the radix. For the default constant radix this is $O(\log n)$ T-depth and $O(n)$ T gates. With the default `t_depth_reduction=True` the CNOT depth becomes linear, although the T-depth stays logarithmic; setting it to `False` keeps both logarithmic.
 
 a can be a QuantumFloat, a list of qubits, or an integer. b can be a QuantumFloat or a list of qubits. Internally it dispatches to cq_qcla for classical a or qq_qcla for quantum a.
 
@@ -120,6 +130,8 @@ No decorator. Has ctrl but no carry-in or carry-out. The radix_base, radix_expon
 
 Similar to Cuccaro, this walks through the register bit by bit. But instead of MAJ/UMA gates, it uses TR gates (a variant of the Toffoli gate built from rotation and phase gates). The TR gate computes a carry and a partial sum in one step. The carry ripples forward through the chain, and on the way back the partial sums are completed. Linear depth, similar ancilla cost to Cuccaro.
 
+The paper's reversible ripple-carry design has a quantum cost of $13n - 8$ and a propagation delay (logic depth) of $(11n - 4)\Delta$, with no ancilla input bits; its TR-gate variant reports $15n - 6$ gates and $(9n + 1)\Delta$ delay. Qrisp uses the TR gate and allocates one output qubit for the carry; cost and depth remain linear in both cases.
+
 Currently this exists as thapliyal_procedure, a low-level function that takes a QuantumCircuit object and raw qubit lists. It only works in static mode. inpl_add (the legacy dispatcher in ripple_carry_adder.py) calls it internally.
 
 > [!IMPORTANT]
@@ -130,6 +142,8 @@ Currently this exists as thapliyal_procedure, a low-level function that takes a 
 Gidney Venting is a carry-venting classical-quantum adder that uses mid-circuit measurements to save qubits.
 
 Like the regular Gidney adder, this builds a semi-classical carry chain. The trick is that after computing each carry, the adder measures it in the X basis (apply H, then measure). This "vents" the qubit: the measurement collapses it, freeing it for reuse. The measurement outcome is tracked classically, and later corrections are applied based on the accumulated measurement results. This trades qubit count for measurement count: only 3 clean ancillae are needed, two alternating as the streaming carry window and one for scratch, regardless of register size.
+
+The paper's constant-workspace construction uses 3 clean ancillae and $4n \pm O(1)$ Toffoli gates at linear ($O(n)$) depth. It also gives a lower-Toffoli variant with $3n \pm O(1)$ Toffolis, 2 clean ancillae, and $n - 2$ dirty ancillae; Qrisp uses the 3-clean-ancilla version.
 
 The catch: `a` must be a classical integer or `BigInteger`. This is a classical-quantum adder only, it can't add two quantum registers. And it only works in JASP mode, because static mode doesn't have mid-circuit measurements. For small registers (under 6 qubits), the overhead isn't worth it, so it falls back to the Gidney adder function.
 
