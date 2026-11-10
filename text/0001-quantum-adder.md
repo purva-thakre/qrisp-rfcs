@@ -35,7 +35,7 @@ But, as stated previously, they are all inconsistently defined in Qrisp. This se
 
 ### Cuccaro Adder
 
-Cuccaro is a ripple-carry adder based on arXiv:quant-ph/0410184.
+Cuccaro is a ripple-carry adder based on [arXiv:quant-ph/0410184](https://arxiv.org/abs/quant-ph/0410184).
 
 The adder walks through the register one bit at a time, from least significant to most significant. At each position it applies a MAJ (majority) gate sequence, which computes whether the addition at that position produces a carry. The carry feeds into the next position. After all carries are computed, the adder walks back through the register applying UMA (unmajority-and-add) gate sequences, which compute the final sum bits and clean up the carry ancillas.
 
@@ -45,7 +45,7 @@ It has the `@custom_control` decorator, supports carry-in, carry-out, and contro
 
 ### Gidney Adder
 
-Gidney is an AND-based adder from arXiv:1709.06648. Same signature and same input flexibility as Cuccaro.
+Gidney is an AND-based adder from [arXiv:1709.06648](https://arxiv.org/abs/1709.06648). Same signature and same input flexibility as Cuccaro.
 
 Like Cuccaro, this is a ripple-carry adder that walks through the register bit by bit. The difference is in how it computes carries. Instead of MAJ/UMA gates, it uses AND gates (a type of Toffoli gate that can be uncomputed with a single measurement). The AND gate computes whether two bits are both 1. By chaining these together with CNOT gates, the adder builds up the carry chain.
 
@@ -57,7 +57,7 @@ The adder has `@custom_control`, full carry support, and works in both modes.
 
 ### Fourier Adder
 
-Fourier is a Draper-style adder that works in the Fourier basis, based on arXiv:quant-ph/0008033.
+Fourier is a Draper-style adder that works in the Fourier basis, based on [arXiv:quant-ph/0008033](https://arxiv.org/abs/quant-ph/0008033).
 
 Instead of computing carries like the other adders, this one transforms `b` into the Fourier basis using a Quantum Fourier Transform (QFT). In the Fourier basis, addition becomes a series of phase rotations. Each qubit of `a` adds a small phase to each qubit of `b`, and the phases add up to the correct sum. Then the inverse QFT transforms `b` back to the computational basis. No ancillas needed, but the number of phase gates is quadratic (every qubit of `a` interacts with every qubit of `b`).
 
@@ -67,6 +67,37 @@ Currently `a` can be an integer, a `QuantumVariable`, or a list of qubits. Same 
 
 > [!IMPORTANT]
 > Work is in-progress to consolidate the separately defined static and dynamic versions of the Fourier adder into a single function compatible in both modes. This refactoring also works to bring the Fourier adder signature in-line with the Cuccaro adder. 
+
+### Remaud Adder
+
+Remaud is an ancilla-free adder with polylogarithmic depth, based on [arXiv:2501.16802](https://arxiv.org/abs/2501.16802).
+
+The other adders process carries one after another (linear depth) or use extra qubits to compute them in parallel (QCLA). Remaud takes a different approach: it uses a "ladder synthesis" technique that computes the sum bits through two stages of CNOT ladders, without any ancilla qubits at all. The first ladder propagates information from the least significant bits upward, and the second ladder propagates it back down to compute the final sum. The result is O(log^2 n) depth with zero ancillas, at the cost of a higher gate count.
+
+`a` and `b` must be the same size. `z` is a single qubit for carry overflow. The signature is completely different from Cuccaro/Gidney: no decorator, no carry-in/carry-out/control parameters. Instead it takes an explicit carry qubit as a required third argument.
+
+> [!IMPORTANT]
+> Work is in progress to refactor this adder and bring it in-line with the Cuccaro adder.
+
+### QCLA Adder
+
+In a ripple-carry adder, each carry depends on the one before it, so the computation is sequential. QCLA computes all the carries at once using a tree structure called a Brent-Kung tree. First, it computes "propagate" and "generate" signals for each pair of input bits (does this pair produce a carry? does it pass one through?). Then it combines these signals up the tree in O(log n) steps, so the final carry at every position is known in parallel. Finally, it uses the carries to compute the sum bits. The tradeoff is that the tree needs O(n) ancilla qubits.
+
+a can be a QuantumFloat, a list of qubits, or an integer. b can be a QuantumFloat or a list of qubits. Internally it dispatches to cq_qcla for classical a or qq_qcla for quantum a.
+
+No decorator. Has ctrl but no carry-in or carry-out. The radix_base, radix_exponent, and t_depth_reduction parameters control the tree structure and are specific to this algorithm.
+
+> [!CAUTION]
+> Planned for deprecation and removal. 
+
+### Thapliyal Adder
+
+Similar to Cuccaro, this walks through the register bit by bit. But instead of MAJ/UMA gates, it uses TR gates (a variant of the Toffoli gate built from rotation and phase gates). The TR gate computes a carry and a partial sum in one step. The carry ripples forward through the chain, and on the way back the partial sums are completed. Linear depth, similar ancilla cost to Cuccaro.
+
+Currently this exists as thapliyal_procedure, a low-level function that takes a QuantumCircuit object and raw qubit lists. It only works in static mode. inpl_add (the legacy dispatcher in ripple_carry_adder.py) calls it internally.
+
+> [!IMPORTANT]
+> Work is in progress to refactor this adder and bring it in-line with the Cuccaro adder.
 
 ### Gidney Venting Adder
 
@@ -78,28 +109,36 @@ The catch: `a` must be a classical integer or `BigInteger`. This is a classical-
 
 Has `@custom_control` and full carry support.
 
+| Adder | How it adds | Depth | Ancillas | Carry/Control | Modes | Refactored? |
+|-------|------------|-------|----------|---------------|-------|-------------|
+| `cuccaro_adder` | MAJ/UMA ripple carry | O(n) | 1 | c_in, c_out, ctrl | Both | Yes |
+| `gidney_adder` | AND-based ripple carry | O(n) | O(n) | c_in, c_out, ctrl | Both | Yes |
+| `gidney_cq_venting` | Measured carry chain | O(n) | 3 (streaming) | c_in, c_out, ctrl | JASP only | Yes |
+| `fourier_adder` | QFT + phase rotations | O(n^2) gates | 0 | None | Both | In progress |
+| `remaud_adder` | Ladder synthesis | O(log^2 n) | 0 | Explicit `z` only | Both | In progress |
+| `qcla` | Brent-Kung carry tree | O(log n) | O(n) | ctrl only | Both | Removing |
+| `thapliyal_adder` | TR-gate ripple carry | O(n) | 1 | None (old API) | Static only (old) | In progress |
+
+To summarize, they all do `b += a`, but there's no way to write code that says "give me any adder" without knowing which specific one you're dealing with.
+
+### Adder Tooling
+
+The low-level helpers that were duplicated across adder files have been moved into a shared `adder_utilities.py` module (PR #990). This includes shared input validation (`_validate_adder_inputs`), type rejection for non-numeric quantum types (`_reject_unsupported_quantum_types`), optional qubit unwrapping (`_normalize_optional_input_arg`), binary string parsing, list-to-DynamicQubitArray conversion, bit extraction, and shared type aliases (`QuantumRegister`, `OptionalQubit`).
+
+This was a necessary first step. But the higher-level tooling (amending, testing, dispatching) is still scattered, and none of the adders have a shared type.
+
+**`ammend_inpl_adder(raw_inpl_adder, ammend_cl_int=True)`** in `adder_tools.py` takes a raw adder function and wraps it so it can handle mixed input types: padding shorter quantum registers, truncating longer ones, and encoding classical integers into temporary quantum variables. Issues: the argument order is reversed (`(value_to_add, target)` vs the raw adder's `(a, b)`), there's a large block of dead code (a QuantumFloat-to-QuantumFloat branch gated by `and False`), and there's no way to discover this function exists unless you read the source.
+
+**`inpl_adder_test(inpl_adder)`** in `utility.py` runs a correctness test suite on an amended adder: quantum-quantum and classical-quantum addition, both uncontrolled and controlled, for register sizes 1-6. It also checks for spurious phase introduction. The problem is that it lives in a 2000+ line utility grab bag, nowhere near the adder code.
+
+**`inpl_add(qf1, qf2, ..., adder="thapliyal")`** in `ripple_carry_adder.py` is the QuantumFloat-level addition dispatcher. It handles exponent alignment, sign handling, and ancilla management, then calls an adder for the actual bit-level addition. Despite having an `adder` parameter, it only accepts `"thapliyal"`. The one place that handles QuantumFloat alignment is hardcoded to one adder.
+
 
 
 ## Proposed design
 [proposed-design]: #proposed-design
 
-TODO: Define the interface, how implementations are selected, and how it lowers to circuits. Include examples and corner cases.
 
-### Test example
-
-```python
-from qrisp import QuantumFloat
-from qrisp.arithmetic import QuantumAdder
-
-a = QuantumFloat(4)
-b = QuantumFloat(4)
-a[:] = 3
-b[:] = 4
-
-QuantumAdder(a, b).apply()
-
-assert b.get_measurement() == {7: 1.0}
-```
 
 ## Unresolved questions
 [unresolved-questions]: #unresolved-questions
