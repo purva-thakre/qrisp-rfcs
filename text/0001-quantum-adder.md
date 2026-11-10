@@ -170,6 +170,8 @@ Ideally, an in-place adder in Qrisp
     * For `QuantumModulus`, the result wraps at the modulus.
     * For signed `QuantumFloat`, overflow handling needs to be decided: options include rejecting signed inputs at the adder level (handling the sign bit at a higher level), two's complement wraparound, or raising an error on overflow.
 
+> [!WARNING]
+> The existing function is spelled `ammend_inpl_adder` (double m). This will be corrected to `amend` as part of this refactoring. All references to `ammend` in this document use the current spelling for clarity, but the final implementation will use `amend` everywhere.
 
 ### Class definition
 
@@ -200,6 +202,8 @@ When you call a `QuantumAdder` instance, it just calls the underlying function. 
 
 The `.ammend()` method wraps the raw adder through `ammend_inpl_adder` so it can handle mixed input types (different-sized registers, classical integers, etc.). The `.verify()` method ammends the adder first, then runs it through the standard `inpl_adder_test` correctness suite. This way a user who writes a custom adder doesn't have to know about either of those functions; they just call `.verify()` and get a pass/fail.
 
+Both `ammend_inpl_adder` and `inpl_adder_test` are being heavily refactored as part of this work. The current implementations are static-mode only, have reversed argument orders, and contain dead code. The refactored versions will work in both static and dynamic modes, follow the standard `(a, b)` argument order, and align with the `QuantumAdder` interface. The class definition above shows the intended API; the internals of `.ammend()` and `.verify()` will change significantly.
+
 ### Using as a decorator
 
 For users writing a new adder from scratch, `QuantumAdder` works as a decorator:
@@ -228,7 +232,7 @@ Most adders accept both quantum-quantum and classical-quantum input combinations
 
 The solution is to let each adder declare what it supports up front, so downstream code can check before calling and either pick a different adder or raise a clear error message.
 
-### Capability metadata
+#### Capability metadata
 
 Each `QuantumAdder` instance carries metadata that describes what it can do:
 
@@ -247,33 +251,75 @@ This also opens the door to smarter defaults in the future. For instance, if bot
 
 ### Type pluggability
 
-Any arithmetic function that currently hardcodes a specific adder gains an optional `adder` parameter typed as `QuantumAdder`. The user can pass whichever adder suits their use case:
+`inpl_add` becomes the single entry point for in-place addition, with an optional `adder` parameter typed as `QuantumAdder`. Instead of being hardcoded to one adder, it gives the user access to all of them:
 
 ```python
 result = inpl_add(a, b, adder=gidney_adder)
 ```
 
-This applies to `inpl_add` first (since it's the main dispatcher), but the same pattern extends to higher-level operations like `multiply`, comparisons, and Montgomery reduction. Each of these ultimately calls an in-place adder somewhere, and the `adder` parameter lets that choice propagate down through the stack. A user who wants Gidney everywhere can pass it once at the top level, and every addition underneath uses it.
+When no adder is passed, `inpl_add` picks a default based on the capability metadata: what execution mode is active, whether the inputs are classical-quantum or quantum-quantum, and what each adder supports. The user can override this by passing a specific adder, and the dispatcher validates that it's compatible with the current context before calling it.
+
+The same `adder` parameter propagates to higher-level operations like `multiply`, comparisons, and Montgomery reduction. Each of these ultimately calls `inpl_add` somewhere, and the adder choice flows down through the stack. A user who wants Gidney everywhere can pass it once at the top level of a quantum type, and every addition underneath uses it.
 
 ### Input validation
 
 Input validation happens in two layers. The shared `_validate_adder_inputs(a, b)` function in `adder_utilities.py` handles the checks that apply to every adder: is `b` a quantum type? Is `a` a valid classical or quantum type? Are non-numeric types like `QuantumChar` and `QuantumString` rejected? This function is called by every adder, either directly or through the amending wrapper.
 
-The higher-level checks that depend on specific quantum types stay where they are. For example, `inpl_add` still handles exponent alignment for `QuantumFloat`, sign compatibility for signed types, and overflow detection. These are not the adder's responsibility; the adder only sees integer-valued qubit registers and classical values by the time it's called.
-
+The higher-level checks that depend on specific quantum types are handled by those types themselves, not by the adder or `inpl_add`. For example, `QuantumFloat.__iadd__` handles exponent alignment before calling the adder, and `QuantumModulus` handles modular reduction. By the time the adder is called, it only sees integer-valued qubit registers and classical values. `inpl_add` simply does addition of integer values.
 
 
 ## Unresolved questions
 [unresolved-questions]: #unresolved-questions
 
-- TODO
+1. **How should the Fourier adder's `perform_QFT` flag work within the `QuantumAdder` interface?** The flag lets users skip the QFT/inverse-QFT when chaining multiple additions in the Fourier basis. This is adder-specific state that doesn't fit the generic signature. Options: make it a parameter on the `QuantumAdder` instance, have the Fourier adder detect internally whether `b` is already in the Fourier basis, or handle it outside the adder entirely.
 
-## Future possibilities
-[future-possibilities]: #future-possibilities
+2. **How should signed `QuantumFloat` overflow be handled?** The proposed design states that type-specific concerns like signs are handled at the type level, not by the adder. But the overflow behavior still needs to be decided: should signed inputs be rejected at the adder level (with sign handling done entirely in `QuantumFloat.__iadd__`), should the adder do two's complement wraparound, or should it raise an error on overflow?
 
-TODO
+3. **What verification strategy works in both static and dynamic mode?** The current `inpl_adder_test` relies on statevector inspection, which is static-only. The refactored `.verify()` needs a single test path that works in both modes, consistent with the project's bias towards mode-agnostic code. Measurement-based checking is one option, but it trades exactness for statistical confidence.
+
+4. **What should the default adder be?** When no adder is passed to `inpl_add`, it needs to pick one. The choice depends on what tradeoffs matter most by default (depth vs. ancilla count vs. gate count) and whether the default should vary by execution mode or input type.
+
+### QubitArray integration
+
+There is a proposal to introduce a common `QubitArray` base class that unifies the static `list[Qubit]` and the dynamic `DynamicQubitArray` into a single type (see Raphael's proposal from Community Day). When that work lands:
+
+- `_validate_adder_inputs` simplifies from an isinstance chain to a check against `QubitArray | int`.
+- The adder type signature becomes `(a: QubitArray | int, b: QubitArray)`, which type checkers can verify statically.
+- `ammend_inpl_adder`'s size-padding logic can use `QubitArray.size` instead of branching on `list` vs. `DynamicQubitArray`.
+
+None of this blocks the `QuantumAdder` class. The class and the validation function work with the register types Qrisp has today and will work with `QubitArray` when it arrives.
+
+### Additional adders
+
+Two published adders are worth wrapping as `QuantumAdder` instances in a future release:
+
+- **Takahashi adder** ([arXiv:0910.2530](https://arxiv.org/abs/0910.2530)). An ancilla-free ripple-carry adder with O(n) depth and O(n^2) gates. It occupies a similar niche to the Remaud adder (no workspace qubits needed) but makes a different depth-vs-gate-count tradeoff. Adding it would give users a second zero-ancilla option.
+
+- **DKRS adder** (Draper-Kutin-Rains-Svore, [arXiv:quant-ph/0406142](https://arxiv.org/abs/quant-ph/0406142)). A logarithmic-depth adder using O(n) ancillas. Once QCLA is removed, Qrisp will have no log-depth adder; DKRS would fill that gap with a cleaner construction.
+
+Neither adder is needed for the initial `QuantumAdder` class. They can be implemented later and wrapped with `@QuantumAdder` the same way the existing adders are.
 
 ## Public API impact
 [public-api-impact]: #public-api-impact
 
-TODO: Describe additions, changes, or removals in Qrisp's public API, with migration guidance. Write "None" if this is internal only.
+### Additions
+
+- `QuantumAdder` class: new public type for wrapping adder functions.
+- `.ammend()` and `.verify()` methods on every wrapped adder.
+- `isinstance(x, QuantumAdder)` for type checking.
+- Downstream functions (`inpl_add`, `multiply`, etc.) gain an optional `adder` parameter.
+
+### Changes
+
+- Each built-in adder (`cuccaro_adder`, `gidney_adder`, etc.) becomes a `QuantumAdder` instance instead of a plain function. Since `QuantumAdder.__call__` delegates directly, existing code that calls these adders continues to work.
+- `inpl_add` accepts any `QuantumAdder` instead of only `"thapliyal"`.
+
+### Removals
+
+- `qcla` and all its helpers (`cq_qcla`, `qq_qcla`, the Brent-Kung tree implementations). Deprecated first, then removed.
+
+### Migration
+
+- **Users calling adders directly**: no change needed. `cuccaro_adder(a, b)` still works.
+- **Users passing adders to `inpl_add`**: replace `adder="thapliyal"` with `adder=thapliyal_adder` (the wrapped instance).
+- **Users with custom adders**: wrap with `@QuantumAdder` or `QuantumAdder(my_func)` to get `.ammend()`, `.verify()`, and type compatibility.
