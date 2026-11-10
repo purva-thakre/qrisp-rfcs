@@ -101,6 +101,8 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 <li>RFC PR: (leave empty until the pull request is opened)</li>
 <li>Qrisp Issue: (link the tracking issue, if one exists)</li>
 </ul>
+<div class="alert warning"><p class="alert-title">Warning</p><p>This RFC intentionally leaves two related naming questions open: whether <code>QuantumFloat</code> should be renamed to better describe fixed-point values, and whether <code>QuantumModulus</code> should be renamed to <code>QuantumModular</code>. Both are worthwhile proposals, but they change the public API and deserve broader community feedback and a formal vote. Addressing them here would hold up the refactoring, so they are deferred to a separate discussion. Nothing in this RFC rules out revisiting either name later.</p></div>
+
 <h2 id="summary">Summary</h2>
 <p><code>QuantumFloat</code> currently serves double duty: it is the integer type when <code>exponent=0</code>
 and a fixed-point type otherwise. There is no dedicated integer class. <code>QuantumModulus</code>
