@@ -1,0 +1,428 @@
+<!doctype html><meta charset=utf-8><title>Qrisp RFC preview</title><style>
+body{max-width:52rem;margin:2rem auto;padding:0 1rem;font:16px/1.6 system-ui,sans-serif}
+pre{background:#ddf4ff;padding:1rem;overflow:auto;border-radius:6px}
+code{background:#ddf4ff;color:#0550ae;padding:.15em .3em;border-radius:4px}
+pre code{background:none;color:inherit;padding:0}
+div.alert{padding:.5rem 1rem;margin:1rem 0;border-left:4px solid;border-radius:6px}
+div.alert p{margin:0}
+div.alert .alert-title{font-weight:600;margin:0 0 .25rem}
+div.alert.note{background:#ddf4ff;border-color:#0969da}
+div.alert.note .alert-title{color:#0969da}
+div.alert.tip{background:#dafbe1;border-color:#1a7f37}
+div.alert.tip .alert-title{color:#1a7f37}
+div.alert.important{background:#fbefff;border-color:#8250df}
+div.alert.important .alert-title{color:#8250df}
+div.alert.warning{background:#fff8c5;border-color:#9a6700}
+div.alert.warning .alert-title{color:#9a6700}
+div.alert.caution{background:#ffebe9;border-color:#cf222e}
+div.alert.caution .alert-title{color:#cf222e}
+table{border-collapse:collapse}
+th,td{border:1px solid #d0d7de;padding:.4rem .7rem}
+img{max-width:100%}
+
+pre { line-height: 125%; }
+td.linenos .normal { color: inherit; background-color: transparent; padding-left: 5px; padding-right: 5px; }
+span.linenos { color: inherit; background-color: transparent; padding-left: 5px; padding-right: 5px; }
+td.linenos .special { color: #000000; background-color: #ffffc0; padding-left: 5px; padding-right: 5px; }
+span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 5px; padding-right: 5px; }
+.highlight .hll { background-color: #ffffcc }
+.highlight { background: #f8f8f8; }
+.highlight .c { color: #3D7B7B; font-style: italic } /* Comment */
+.highlight .err { border: 1px solid #F00 } /* Error */
+.highlight .k { color: #008000; font-weight: bold } /* Keyword */
+.highlight .o { color: #666 } /* Operator */
+.highlight .ch { color: #3D7B7B; font-style: italic } /* Comment.Hashbang */
+.highlight .cm { color: #3D7B7B; font-style: italic } /* Comment.Multiline */
+.highlight .cp { color: #9C6500 } /* Comment.Preproc */
+.highlight .cpf { color: #3D7B7B; font-style: italic } /* Comment.PreprocFile */
+.highlight .c1 { color: #3D7B7B; font-style: italic } /* Comment.Single */
+.highlight .cs { color: #3D7B7B; font-style: italic } /* Comment.Special */
+.highlight .gd { color: #A00000 } /* Generic.Deleted */
+.highlight .ge { font-style: italic } /* Generic.Emph */
+.highlight .ges { font-weight: bold; font-style: italic } /* Generic.EmphStrong */
+.highlight .gr { color: #E40000 } /* Generic.Error */
+.highlight .gh { color: #000080; font-weight: bold } /* Generic.Heading */
+.highlight .gi { color: #008400 } /* Generic.Inserted */
+.highlight .go { color: #717171 } /* Generic.Output */
+.highlight .gp { color: #000080; font-weight: bold } /* Generic.Prompt */
+.highlight .gs { font-weight: bold } /* Generic.Strong */
+.highlight .gu { color: #800080; font-weight: bold } /* Generic.Subheading */
+.highlight .gt { color: #04D } /* Generic.Traceback */
+.highlight .kc { color: #008000; font-weight: bold } /* Keyword.Constant */
+.highlight .kd { color: #008000; font-weight: bold } /* Keyword.Declaration */
+.highlight .kn { color: #008000; font-weight: bold } /* Keyword.Namespace */
+.highlight .kp { color: #008000 } /* Keyword.Pseudo */
+.highlight .kr { color: #008000; font-weight: bold } /* Keyword.Reserved */
+.highlight .kt { color: #B00040 } /* Keyword.Type */
+.highlight .m { color: #666 } /* Literal.Number */
+.highlight .s { color: #BA2121 } /* Literal.String */
+.highlight .na { color: #687822 } /* Name.Attribute */
+.highlight .nb { color: #008000 } /* Name.Builtin */
+.highlight .nc { color: #00F; font-weight: bold } /* Name.Class */
+.highlight .no { color: #800 } /* Name.Constant */
+.highlight .nd { color: #A2F } /* Name.Decorator */
+.highlight .ni { color: #717171; font-weight: bold } /* Name.Entity */
+.highlight .ne { color: #CB3F38; font-weight: bold } /* Name.Exception */
+.highlight .nf { color: #00F } /* Name.Function */
+.highlight .nl { color: #767600 } /* Name.Label */
+.highlight .nn { color: #00F; font-weight: bold } /* Name.Namespace */
+.highlight .nt { color: #008000; font-weight: bold } /* Name.Tag */
+.highlight .nv { color: #19177C } /* Name.Variable */
+.highlight .ow { color: #A2F; font-weight: bold } /* Operator.Word */
+.highlight .w { color: #BBB } /* Text.Whitespace */
+.highlight .mb { color: #666 } /* Literal.Number.Bin */
+.highlight .mf { color: #666 } /* Literal.Number.Float */
+.highlight .mh { color: #666 } /* Literal.Number.Hex */
+.highlight .mi { color: #666 } /* Literal.Number.Integer */
+.highlight .mo { color: #666 } /* Literal.Number.Oct */
+.highlight .sa { color: #BA2121 } /* Literal.String.Affix */
+.highlight .sb { color: #BA2121 } /* Literal.String.Backtick */
+.highlight .sc { color: #BA2121 } /* Literal.String.Char */
+.highlight .dl { color: #BA2121 } /* Literal.String.Delimiter */
+.highlight .sd { color: #BA2121; font-style: italic } /* Literal.String.Doc */
+.highlight .s2 { color: #BA2121 } /* Literal.String.Double */
+.highlight .se { color: #AA5D1F; font-weight: bold } /* Literal.String.Escape */
+.highlight .sh { color: #BA2121 } /* Literal.String.Heredoc */
+.highlight .si { color: #A45A77; font-weight: bold } /* Literal.String.Interpol */
+.highlight .sx { color: #008000 } /* Literal.String.Other */
+.highlight .sr { color: #A45A77 } /* Literal.String.Regex */
+.highlight .s1 { color: #BA2121 } /* Literal.String.Single */
+.highlight .ss { color: #19177C } /* Literal.String.Symbol */
+.highlight .bp { color: #008000 } /* Name.Builtin.Pseudo */
+.highlight .fm { color: #00F } /* Name.Function.Magic */
+.highlight .vc { color: #19177C } /* Name.Variable.Class */
+.highlight .vg { color: #19177C } /* Name.Variable.Global */
+.highlight .vi { color: #19177C } /* Name.Variable.Instance */
+.highlight .vm { color: #19177C } /* Name.Variable.Magic */
+.highlight .il { color: #666 } /* Literal.Number.Integer.Long */</style><script>MathJax={tex:{inlineMath:[['\\(','\\)']],displayMath:[['\\[','\\]']]}};</script><script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script><h1 id="rfc-001-introduce-an-in-place-adder-class">RFC 001: Introduce an in-place adder class</h1>
+<ul>
+<li>Feature Name: <code>QuantumAdder</code> Class</li>
+<li>Start Date: 2026-11-05</li>
+<li>RFC PR: <a href="https://github.com/purva-thakre/qrisp-rfcs/pull/2">https://github.com/purva-thakre/qrisp-rfcs/pull/2</a></li>
+<li>Qrisp Issue: N/A</li>
+</ul>
+<h2 id="summary">Summary</h2>
+<p>Qrisp has seven in-place adders. They all do the same thing (add a value stored from one input into another), but each one has a different signature, different optional parameters, and different input handling. There is no shared type, no shared validation, and no way to check at runtime whether a given function is actually a valid in-place adder. The tooling that exists (amending adders to handle mixed inputs, verifying correctness) is split across separate files, and a user who provides a custom adder has to discover each piece on their own.</p>
+<p>This RFC walks through every in-place adder in Qrisp and the tooling around them, then proposes a thin wrapper <code>QuantumAdder</code> class that gives them a standard interface without changing how any of them works.</p>
+<h2 id="motivation">Motivation</h2>
+<p>In-place addition is the single primitive underlying all arithmetic in Qrisp. Subtraction is performed by negating before adding; multiplication reduces to repeated addition; comparisons are implemented as a subtraction followed by a sign check; and Montgomery reduction decomposes into a series of additions and shifts. Any out-of-place arithmetic operations store the result of the in-place adder in a new <code>QuantumVariable</code>. In short, the in-place adders are the foundation on which the entire arithmetic stack rests.</p>
+<p>Today, if you want to use a specific adder for your computation, you have to know which function to import, what arguments it expects, and whether it works in your execution mode (static vs. dynamic). If you want to swap one adder for another, you have to check that the replacement accepts the same input types and handles carry/control qubits the same way. There is no common interface that lets you treat adders interchangeably.</p>
+<p>This also makes it hard to introduce a custom adder. Qrisp has tooling for amending adders (so they handle mixed input types like integers and generic quantum variables) and for verifying the custom adder works as expected by running a standard correctness test suite. But this tooling is easy to miss. It lives in separate files, uses a different calling convention than the adders themselves, and is not referenced anywhere. A user who implements a new in-place adder in Qrisp has to read the source to find out that <code>ammend_inpl_adder</code> and <code>inpl_adder_test</code> exist, call them in the right order, and work around their respective quirks. Note that both functions require significant refactoring on their own, which this RFC also addresses.  While these functions are not named with a leading underscore (which would signal they're private), they should not be treated as part of the public API.</p>
+<p>Wrapping each adder in a <code>QuantumAdder</code> class gives them a shared type, puts the tooling where users can find it, and lets any arithmetic function accept an adder as a parameter and pass it through to the operations underneath</p>
+<h2 id="background-and-current-architecture">Background and current architecture</h2>
+<div class="alert note"><p class="alert-title">Note</p><p>Whenever a generic <code>QuantumVariable</code> is described as an input to an in-place adder, it refers only to the subtypes that allow a numerical value to be encoded in them. Thus, this document excludes <code>QuantumChar</code> and <code>QuantumString</code> from the discussion.</p></div>
+
+<p>Every adder does the same fundamental thing: <span class="arithmatex">\(b \mathrel{+}= a\)</span> on generic <code>QuantumVariable</code> objects in static and/or dynamic mode. The first operand <code>a</code> can be either a classical integer, a <code>BigInteger</code> or a <code>QuantumVariable</code>. The second operand <code>b</code> is always a <code>QuantumVariable</code> and is where the result is stored such that the addition happens in place. Beyond the two operands, an adder may accept a carry-in qubit (an incoming carry from a previous addition), a carry-out qubit (to capture overflow), and a control qubit (so the addition only happens when the control <code>QuantumVariable</code> is in state <code>1</code>). The adders differ in how they compute and propagate carries through the qubit chain, and in which of these optional inputs they support.</p>
+<p>But, as stated previously, they are all inconsistently defined in Qrisp. This section provides a description of how each in-place adder works and where it stands in terms of moving towards a unified interface. The Cuccaro and Gidney adders were refactored recently and now serve as the reference design that the other adders are being brought in line with (except the venting based Gidney adder). The Thapliyal adder, Remaud adder, and Fourier adder all have open PRs that refactor them to match the Cuccaro/Gidney interface.</p>
+<table>
+<thead>
+<tr>
+<th>Adder</th>
+<th>How it adds</th>
+<th>Depth</th>
+<th>Ancillas</th>
+<th style="text-align: center;">Carry-in</th>
+<th style="text-align: center;">Carry-out</th>
+<th style="text-align: center;">Control</th>
+<th>Modes</th>
+<th>Refactored?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>cuccaro_adder</code></td>
+<td>MAJ/UMA ripple carry</td>
+<td><span class="arithmatex">\(O(n)\)</span></td>
+<td>1</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">✅</td>
+<td>Both</td>
+<td>✅</td>
+</tr>
+<tr>
+<td><code>gidney_adder</code></td>
+<td>AND-based ripple carry</td>
+<td><span class="arithmatex">\(O(n)\)</span></td>
+<td><span class="arithmatex">\(O(n)\)</span></td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">✅</td>
+<td>Both</td>
+<td>✅</td>
+</tr>
+<tr>
+<td><code>gidney_cq_venting</code></td>
+<td>Measured carry chain</td>
+<td><span class="arithmatex">\(O(n)\)</span></td>
+<td>3 clean</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">✅</td>
+<td>JASP only</td>
+<td>✅</td>
+</tr>
+<tr>
+<td><code>fourier_adder</code></td>
+<td>QFT + phase rotations</td>
+<td><span class="arithmatex">\(O(n)\)</span></td>
+<td>0</td>
+<td style="text-align: center;">❌*</td>
+<td style="text-align: center;">❌*</td>
+<td style="text-align: center;">❌*</td>
+<td>Both</td>
+<td>🚧</td>
+</tr>
+<tr>
+<td><code>remaud_adder</code></td>
+<td>Ladder synthesis</td>
+<td><span class="arithmatex">\(O(\log^2 n)\)</span></td>
+<td>0</td>
+<td style="text-align: center;">❌*</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">❌*</td>
+<td>Both</td>
+<td>🚧</td>
+</tr>
+<tr>
+<td><code>qcla</code></td>
+<td>Brent-Kung carry tree</td>
+<td><span class="arithmatex">\(O(\log n)\)</span> T-depth</td>
+<td><span class="arithmatex">\(O(n)\)</span></td>
+<td style="text-align: center;">❌</td>
+<td style="text-align: center;">❌</td>
+<td style="text-align: center;">✅</td>
+<td>Both</td>
+<td>Removing</td>
+</tr>
+<tr>
+<td><code>thapliyal_adder</code></td>
+<td>TR-gate ripple carry</td>
+<td><span class="arithmatex">\(O(n)\)</span></td>
+<td>1†</td>
+<td style="text-align: center;">❌*</td>
+<td style="text-align: center;">❌*</td>
+<td style="text-align: center;">❌*</td>
+<td>Static only (old)</td>
+<td>🚧</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Legend:</strong></p>
+<ul>
+<li>Carry/Control columns<ul>
+<li>✅ supported today</li>
+<li>❌ not supported</li>
+<li>❌* not supported yet, planned as part of the refactor</li>
+</ul>
+</li>
+<li>Ancillas column<ul>
+<li>† The Qrisp implementation of the Thapliyal adder allocates one output qubit for the carry; the paper claims 0 ancilla inputs</li>
+</ul>
+</li>
+<li>Refactored? column<ul>
+<li>✅ done</li>
+<li>🚧 in progress</li>
+<li><code>Removing</code> no refactor</li>
+</ul>
+</li>
+</ul>
+<p>To summarize, they all do <span class="arithmatex">\(b \mathrel{+}= a\)</span>, but there's no way to write code that says "give me any adder" without knowing which specific one you're dealing with.</p>
+<h3 id="cuccaro-adder">Cuccaro Adder</h3>
+<p>Cuccaro is a ripple-carry adder based on <a href="https://arxiv.org/abs/quant-ph/0410184">arXiv:quant-ph/0410184</a>.</p>
+<p>The adder walks through the register one bit at a time, from least significant to most significant. At each position it applies a MAJ (majority) gate sequence, which computes whether the addition at that position produces a carry. The carry feeds into the next position. After all carries are computed, the adder walks back through the register applying UMA (unmajority-and-add) gate sequences, which compute the final sum bits and clean up the carry ancillas.</p>
+<p>Cuccaro is the simplest adder in Qrisp: linear depth (proportional to the number of qubits), one ancilla qubit for the carry chain. Input <code>a</code> can be an integer, a binary string, a <code>BigInteger</code>, or a <code>QuantumVariable</code>. Input <code>b</code> must be a <code>QuantumVariable</code>. When <code>a</code> is classical, the Qrisp Cuccaro adder function encodes the value into a temporary quantum variable internally.</p>
+<p>The paper reports a depth of <span class="arithmatex">\(2n + O(1)\)</span>, using <span class="arithmatex">\(2n + O(1)\)</span> Toffoli gates, <span class="arithmatex">\(5n + O(1)\)</span> CNOT gates, and <span class="arithmatex">\(2n + O(1)\)</span> negations, all with a single carry ancilla. As discussed in the Gidney adder paper, implementing these Toffolis with the standard construction gives a T-count of <span class="arithmatex">\(8n + O(1)\)</span>.</p>
+<p>It has the <code>@custom_control</code> decorator, supports carry-in, carry-out, and control qubits, and works in both static and dynamic (JASP) modes. This is the reference implementation that other adders are being refactored to match.</p>
+<h3 id="gidney-adder">Gidney Adder</h3>
+<p>Gidney is an AND-based adder from <a href="https://arxiv.org/abs/1709.06648">arXiv:1709.06648</a>. Same signature and same input flexibility as Cuccaro.</p>
+<p>Like Cuccaro, this is a ripple-carry adder that walks through the register bit by bit. The difference is in how it computes carries. Instead of MAJ/UMA gates, it uses AND gates (a type of Toffoli gate that can be uncomputed with a single measurement). The AND gate computes whether two bits are both 1. By chaining these together with CNOT gates, the adder builds up the carry chain.</p>
+<p>The big advantage shows up when <code>a</code> is classical. The paper describes only quantum-quantum addition, but the Qrisp implementation adds a semi-classical carry chain that never encodes <code>a</code> into qubits at all. It applies controlled gates based on the bits of the classical value. This skips the temporary register that Cuccaro needs, saving qubits and gates.</p>
+<p>The Gidney adder has the same <span class="arithmatex">\(O(n)\)</span> depth as the Cuccaro adder for quantum-quantum addition, but it uses <span class="arithmatex">\(O(n)\)</span> carry ancillae (the carry chain keeps one ancilla per bit) rather than Cuccaro's single ancilla. For classical-quantum addition it's more efficient because it avoids the temporary encoding. In detail, the paper's <span class="arithmatex">\(n\)</span>-bit adder has a T-count of <span class="arithmatex">\(4n + O(1)\)</span>, a measurement depth of <span class="arithmatex">\(2n + O(1)\)</span>, and requires <span class="arithmatex">\(n\)</span> ancillae. Each temporary logical-AND costs 4 T gates and has measurement depth 2, and its uncomputation costs no T gates.</p>
+<p>The Qrisp Gidney adder implementation has <code>@custom_control</code>, full carry support, and works in both modes.</p>
+<h3 id="fourier-adder">Fourier Adder</h3>
+<p>Fourier is a Draper-style adder that works in the Fourier basis, based on <a href="https://arxiv.org/abs/quant-ph/0008033">arXiv:quant-ph/0008033</a>.</p>
+<p>Instead of computing carries like the other adders, this one transforms <code>b</code> into the Fourier basis using a Quantum Fourier Transform (QFT). In the Fourier basis, addition becomes a series of phase rotations. Each qubit of <code>a</code> adds a small phase to each qubit of <code>b</code>, and the phases add up to the correct sum. Then the inverse QFT transforms <code>b</code> back to the computational basis. No ancillas needed as the construction does not require temporary carry bits, but the number of phase gates is quadratic (every qubit of <code>a</code> interacts with every qubit of <code>b</code>).</p>
+<p>The exact QFT-based addition uses <span class="arithmatex">\(O(n^2)\)</span> gates. The paper notes that the approximate QFT (AQFT) reduces this to <span class="arithmatex">\(O(n \log n)\)</span> operations, and that with enough parallelism (<span class="arithmatex">\(n/2\)</span> simultaneous two-qubit gates) the circuit runs in about <span class="arithmatex">\(n + 1\)</span> time slices, or <span class="arithmatex">\(O(\log n)\)</span> time slices with the AQFT.</p>
+<p>The <code>perform_QFT</code> flag in the Qrisp implementation lets you skip the QFT/inverse-QFT when you're chaining multiple additions. You apply the QFT once at the start, do all your additions in the Fourier basis, and apply the inverse QFT once at the end.</p>
+<p>Currently <code>a</code> can be an integer, a <code>QuantumVariable</code>, or a list of qubits. Same for <code>b</code>. The signature is different from Cuccaro/Gidney: no carry-in, carry-out, or control parameters, no <code>@custom_control</code> decorator.</p>
+<div class="alert important"><p class="alert-title">Important</p><p>Work is in-progress to consolidate the separately defined static and dynamic versions of the Fourier adder into a single function compatible in both modes. This refactoring also works to bring the Fourier adder signature in-line with the Cuccaro adder. </p></div>
+
+<h3 id="remaud-adder">Remaud Adder</h3>
+<p>Remaud is an ancilla-free adder with polylogarithmic depth, based on <a href="https://arxiv.org/abs/2501.16802">arXiv:2501.16802</a>.</p>
+<p>The other adders process carries one after another (linear depth) or use extra qubits to compute them in parallel (QCLA). Remaud takes a different approach: starting from the Takahashi ripple-carry circuit, it replaces the CNOT and Toffoli ladders that cause the linear depth with logarithmic-depth equivalents. The addition circuit has seven slices: parallel CNOT layers, CNOT ladders, and Toffoli ladders. Each CNOT ladder is decomposed into a recursive <span class="arithmatex">\(O(\log n)\)</span>-depth circuit (Lemma 2) and each Toffoli ladder into an <span class="arithmatex">\(O(\log^2 n)\)</span>-depth circuit (Lemma 4), all without ancilla qubits. The result is <span class="arithmatex">\(O(\log^2 n)\)</span> depth with zero ancillas, at the cost of an <span class="arithmatex">\(O(n \log n)\)</span> (linearithmic) gate count.</p>
+<p>With the current Qrisp implementation, <code>a</code> and <code>b</code> must be the same size. <code>z</code> is a single qubit for carry overflow. The signature is completely different from Cuccaro/Gidney: no decorator, no carry-in/carry-out/control parameters. Instead it takes an explicit carry qubit as a required third argument.</p>
+<div class="alert important"><p class="alert-title">Important</p><p>Work is in progress to refactor this adder and bring it in-line with the Cuccaro adder.</p></div>
+
+<h3 id="qcla-adder">QCLA Adder</h3>
+<p>QCLA is a carry-lookahead adder based on <a href="https://arxiv.org/abs/2304.02921">arXiv:2304.02921</a> that uses a Brent-Kung tree to compute all carries in parallel, achieving <span class="arithmatex">\(O(\log n)\)</span> T-depth and <span class="arithmatex">\(O(n)\)</span> T gates at the cost of <span class="arithmatex">\(O(n)\)</span> ancilla qubits. It supports classical-quantum and quantum-quantum inputs, has a <code>ctrl</code> parameter but no carry-in or carry-out, and does not use the <code>@custom_control</code> decorator.</p>
+<div class="alert caution"><p class="alert-title">Caution</p><p>Planned for deprecation and removal. </p></div>
+
+<h3 id="thapliyal-adder">Thapliyal Adder</h3>
+<p>Similar to Cuccaro, this walks through the register bit by bit. But instead of MAJ/UMA gates, it uses TR gates, a distinct reversible gate built from one Controlled-V gate, one CNOT gate, and two Controlled-<span class="arithmatex">\(V^\dagger\)</span> gates (quantum cost 4), where V is the <span class="arithmatex">\(\sqrt{X}\)</span> (square root of NOT) gate and <span class="arithmatex">\(V^\dagger\)</span> is its inverse. The TR gate realizes the Boolean functions <span class="arithmatex">\(A \cdot \bar{B} \oplus C\)</span> and <span class="arithmatex">\(A \oplus B\)</span>. The carry ripples forward through the chain, and on the way back the sum bits are completed. Linear depth, similar ancilla cost to Cuccaro.</p>
+<p>The paper gives two ripple-carry designs, both using TR gates and both without ancilla input bits. The no-input-carry design (Section 4) has a quantum cost of <span class="arithmatex">\(13n - 8\)</span> and a propagation delay of <span class="arithmatex">\((11n - 4)\Delta\)</span>. The with-input-carry design (Section 5) has a quantum cost of <span class="arithmatex">\(15n - 6\)</span> and a delay of <span class="arithmatex">\((9n + 1)\Delta\)</span>. Qrisp uses the TR gate and allocates one output qubit for the carry; cost and depth remain linear in both cases.</p>
+<p>Currently this exists as <code>thapliyal_procedure</code>, a low-level function that takes a <code>QuantumCircuit</code> object and raw qubit lists. It only works in static mode. <code>inpl_add</code> (the legacy dispatcher in <code>ripple_carry_adder.py</code>) calls it internally.</p>
+<div class="alert important"><p class="alert-title">Important</p><p>Work is in progress to refactor this adder and bring it in-line with the Cuccaro adder.</p></div>
+
+<h3 id="gidney-venting-adder">Gidney Venting Adder</h3>
+<p>Gidney Venting is a carry-venting classical-quantum adder that uses mid-circuit measurements to save qubits.</p>
+<p>Like the regular Gidney adder, this builds a classical-quantum carry chain. The trick is that after computing each carry, the adder measures it in the X basis. This "vents" the qubit: the measurement collapses it, freeing it for reuse. The measurement outcome is tracked classically, and later corrections are applied based on the accumulated measurement results. This trades qubit count for measurement count: only 3 clean ancillae are needed regardless of register size.</p>
+<p>The paper's constant-workspace construction uses 3 clean ancillae and <span class="arithmatex">\(4n \pm O(1)\)</span> Toffoli gates at linear (<span class="arithmatex">\(O(n)\)</span>) depth. It also gives a lower-Toffoli variant with <span class="arithmatex">\(3n \pm O(1)\)</span> Toffolis, 2 clean ancillae, and <span class="arithmatex">\(n - 2\)</span> dirty ancillae. The Qrisp implementation uses the 3-clean-ancilla construction. It splits the target register in half: the bottom half is added using a clean carry-venting chain (Fig. 2 of the paper), and the top half is added using the paper’s dirty-ancilla construction (Fig. 4), which borrows the bottom-half target qubits as dirty workspace. The 3 clean ancillae provide the streaming carry window and mid-carry bridge throughout.</p>
+<p>The catch: <code>a</code> must be a classical integer or <code>BigInteger</code>. This is a classical-quantum adder only, it can't add two quantum registers. And it only works in JASP mode, because static mode doesn't have mid-circuit measurements. For small registers (under 6 qubits), the overhead isn't worth it, so it falls back to the Gidney adder function.</p>
+<p>Has <code>@custom_control</code> and full carry support.</p>
+<h3 id="adder-tooling">Adder Tooling</h3>
+<p>The low-level helpers that were duplicated across adder files have been moved into a shared <code>adder_utilities.py</code> module. This includes shared input validation (<code>_validate_adder_inputs</code>), type rejection for non-numeric quantum types (<code>_reject_unsupported_quantum_types</code>), optional qubit unwrapping (<code>_normalize_optional_input_arg</code>), binary string parsing, list-to-DynamicQubitArray conversion, bit extraction, and shared type aliases (<code>QuantumRegister</code>, <code>OptionalQubit</code>). This was a necessary first step. But the higher-level tooling (amending, testing, dispatching) is still scattered, and none of the adders have a shared type.</p>
+<ul>
+<li>
+<p><code>ammend_inpl_adder(raw_inpl_adder, ammend_cl_int=True)</code> in <code>adder_tools.py</code> takes a raw adder function and wraps it so it can handle mixed input types: padding shorter registers, truncating longer ones, and encoding classical integers into temporary quantum variables. This only works in static mode; in dynamic mode the wrapper does nothing and passes the arguments through unchanged. The function also has a reversed argument order compared to the raw adders, dead code that is never reached, and no way to discover it exists unless you read the source.</p>
+</li>
+<li>
+<p><code>inpl_adder_test(inpl_adder)</code> in <code>utility.py</code> runs a correctness test suite on an amended adder: quantum-quantum and classical-quantum addition, both uncontrolled and controlled, for register sizes 1-6. It also checks for spurious phase introduction. The problem is that it is nowhere near the adder code and is also not compatible in dynamic mode.</p>
+</li>
+<li>
+<p><code>inpl_add(qf1, qf2, ..., adder="thapliyal")</code> in <code>ripple_carry_adder.py</code> is the <code>QuantumFloat</code>-level addition dispatcher. It handles exponent alignment, sign handling, and ancilla management, then calls an adder for the actual bit-level addition. Despite having an <code>adder</code> parameter, it only accepts <code>"thapliyal"</code>. The one place that handles <code>QuantumFloat</code> alignment is hardcoded to one adder and works only in static mode.</p>
+</li>
+</ul>
+<h2 id="proposed-design">Proposed design</h2>
+<p>Ideally, an in-place adder in Qrisp</p>
+<ul>
+<li>Should be compatible in both static and dynamic modes unless the adder relies on mid-circuit measurements with classically controlled corrections (for example, Gidney's venting adder), which require dynamic mode.<ul>
+<li>Note that these adders only work with integers. They don't need to worry about issues like overflow, exponent alignment, signs, or non-integer inputs (like a QuantumFloat with a non-zero exponent). Those are handled at a higher level when quantum types are dispatched (at the level of infix arithmetic). The adder documentation will state this clearly. For example, for operators like +, each type handles these issues itself before using the adder: <code>QuantumFloat.__iadd__</code> aligns exponents first, while <code>QuantumInt.__iadd__</code> passes values straight to the adder etc.</li>
+</ul>
+</li>
+<li>Should follow the standard signature <code>(a, b, c_in=None, c_out=None, ctrl=None)</code> where possible, where <code>a</code> and <code>b</code> are the two integer values to be added, <code>c_in</code> and <code>c_out</code> designate the optional carry in and carry out values.<ul>
+<li>The <code>c_in</code> parameter may be a <code>Qubit</code>, a <code>QuantumVariable</code> of size 1 (including <code>QuantumBool</code>), a single-element <code>list[Qubit]</code>, or a classical value of 0 or 1. The adder computes <span class="arithmatex">\(b \leftarrow (a + b + c_{in}) \mod 2^{\text{len}(b)}\)</span>.</li>
+<li>The <code>c_out</code> parameter may be a <code>Qubit</code>, a <code>QuantumVariable</code> of size 1 (including <code>QuantumBool</code>), or a single-element <code>list[Qubit]</code>. The adder computes <span class="arithmatex">\(c_{out} \leftarrow c_{out} \oplus \text{carry}\)</span>, so that <code>c_out</code> holds the bit that would otherwise be discarded on wraparound.</li>
+<li>Adders that do not natively support carry operations declare this in their metadata; for these, <code>.amend()</code> emulates the carry logic. In this emulation, <code>c_out</code> is treated as an extra most significant bit of <code>b</code>, and <code>c_in</code> is incorporated by means of a controlled increment.</li>
+</ul>
+</li>
+<li>Should accept all types that allow an end user to encode an int or a float value into the quantum type: <code>QuantumVariable</code>, <code>QuantumFloat</code>, <code>QuantumInt</code> (see the next RFC where <code>QuantumFloat</code> is going to be split into <code>QuantumInt</code> and <code>QuantumFloat</code>), <code>QuantumModulus</code>, <code>QuantumBool</code>, <code>DynamicQubitArray</code>, and <code>list[Qubit]</code>.<ul>
+<li>The first argument can also be a classical value: <code>int</code>, <code>np.integer</code>, <code>str</code> (binary string), <code>BigInteger</code>, or a traced JAX scalar in dynamic mode.</li>
+<li>Non-numeric quantum types <code>QuantumChar</code> and <code>QuantumString</code> should be rejected as either input.</li>
+</ul>
+</li>
+<li>Should have a custom controlled version (<code>@custom_control</code>) compatible in both modes.</li>
+<li>Should safely handle inputs of unequal sizes. The result always fits into the second input <code>b</code>. If the sum is larger than <code>b</code> can hold, it wraps around (the result is the sum modulo <span class="arithmatex">\(2^{\text{len}(b)}\)</span>). When <code>a</code> is larger than <code>b</code>, <code>a</code> is truncated to match <code>b</code>'s size. When <code>a</code> is smaller, <code>a</code> is padded with ancilla qubits that are only used during the addition and safely removed afterward. The second input's size is never adjusted because ancilla qubits written during the addition cannot be safely removed.<ul>
+<li>For <code>QuantumModulus</code>, the result wraps at the modulus.</li>
+<li>For signed <code>QuantumFloat</code>, overflow handling needs to be decided: options include rejecting signed inputs at the adder level (handling the sign bit at a higher level), two's complement wraparound, or raising an error on overflow.</li>
+</ul>
+</li>
+</ul>
+<div class="alert warning"><p class="alert-title">Warning</p><p>The existing function is spelled <code>ammend_inpl_adder</code> (double m). This will be corrected to <code>amend</code> as part of this refactoring. All references to <code>ammend</code> in this document use the current spelling for clarity, but the final implementation will use <code>amend</code> everywhere.</p></div>
+
+<h3 id="class-definition">Class definition</h3>
+<p>The <code>QuantumAdder</code> class is intentionally thin. It wraps an existing adder function without changing how that function behaves when called. The wrapper just gives the function a type you can check against and puts the tooling (amending, verification) in a place where users can find it.</p>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">functools</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">QuantumAdder</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">func</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_raw</span> <span class="o">=</span> <span class="n">func</span>
+        <span class="n">functools</span><span class="o">.</span><span class="n">update_wrapper</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">func</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_raw</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">ammend</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ammend_cl_int</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return an ammended version via ammend_inpl_adder.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">ammend_inpl_adder</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_raw</span><span class="p">,</span> <span class="n">ammend_cl_int</span><span class="o">=</span><span class="n">ammend_cl_int</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">verify</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Verify correctness via inpl_adder_test (ammends internally first).&quot;&quot;&quot;</span>
+        <span class="n">ammended</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ammend</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">inpl_adder_test</span><span class="p">(</span><span class="n">ammended</span><span class="p">)</span>
+</code></pre></div>
+<p>When you call a <code>QuantumAdder</code> instance, it just calls the underlying function. Nothing about the adder's behavior changes at the call site. <code>functools.update_wrapper</code> copies over <code>__name__</code>, <code>__doc__</code>, and <code>__module__</code> from the raw function, so <code>help(cuccaro_adder)</code> still shows the original docstring and introspection works as expected.</p>
+<p>The <code>.ammend()</code> method wraps the raw adder through <code>ammend_inpl_adder</code> so it can handle mixed input types (different-sized registers, classical integers, etc.). The <code>.verify()</code> method ammends the adder first, then runs it through the standard <code>inpl_adder_test</code> correctness suite. This way a user who writes a custom adder doesn't have to know about either of those functions; they just call <code>.verify()</code> and get a pass/fail.</p>
+<p>Both <code>ammend_inpl_adder</code> and <code>inpl_adder_test</code> are being heavily refactored as part of this work. The current implementations are static-mode only, have reversed argument orders, and contain dead code. The refactored versions will work in both static and dynamic modes, follow the standard <code>(a, b)</code> argument order, and align with the <code>QuantumAdder</code> interface. The class definition above shows the intended API; the internals of <code>.ammend()</code> and <code>.verify()</code> will change significantly.</p>
+<h3 id="using-as-a-decorator">Using as a decorator</h3>
+<p>For users writing a new adder from scratch, <code>QuantumAdder</code> works as a decorator:</p>
+<div class="highlight"><pre><span></span><code><span class="nd">@QuantumAdder</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">my_custom_adder</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">c_in</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">c_out</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">ctrl</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="o">...</span>
+</code></pre></div>
+<p>This is the intended way to define a new adder going forward. The decorator wraps the function at definition time, so <code>my_custom_adder</code> is immediately a <code>QuantumAdder</code> instance with <code>.ammend()</code> and <code>.verify()</code> available. You can still call it like a normal function.</p>
+<h3 id="wrapping-existing-adders">Wrapping existing adders</h3>
+<p>The built-in adders already have their own decorators (several use <code>@custom_control</code>). Stacking <code>@QuantumAdder</code> on top of <code>@custom_control</code> could cause decorator interaction issues, so wrapping is applied post-hoc at the bottom of each adder's module instead:</p>
+<div class="highlight"><pre><span></span><code><span class="n">cuccaro_adder</span> <span class="o">=</span> <span class="n">QuantumAdder</span><span class="p">(</span><span class="n">cuccaro_adder</span><span class="p">)</span>
+</code></pre></div>
+<p>This reassigns the module-level name to the wrapped version. Existing imports that reference <code>cuccaro_adder</code> by name pick up the <code>QuantumAdder</code> instance, and since <code>__call__</code> delegates directly, all existing call sites keep working. The same pattern applies to every built-in adder that is being kept.</p>
+<h3 id="classical-quantum-only-adders">Classical-quantum-only adders</h3>
+<p>Most adders accept both quantum-quantum and classical-quantum input combinations. The Gidney Venting adder is the exception: it only works with classical-quantum inputs (the first argument must be an integer or <code>BigInteger</code>, never a quantum register). The <code>QuantumAdder</code> interface needs to handle this gracefully rather than letting the user hit a confusing error deep in the carry-venting logic.</p>
+<p>The solution is to let each adder declare what it supports up front, so downstream code can check before calling and either pick a different adder or raise a clear error message.</p>
+<h4 id="capability-metadata">Capability metadata</h4>
+<p>Each <code>QuantumAdder</code> instance carries metadata that describes what it can do:</p>
+<ul>
+<li><code>supports_qq</code>: whether the adder accepts quantum-quantum input combinations. True for most adders, False for Gidney Venting.</li>
+<li><code>modes</code>: which execution modes the adder works in: <code>"static"</code>, <code>"dynamic"</code>, or <code>"both"</code>.</li>
+</ul>
+<p>This metadata is set when the adder is wrapped. For the built-in adders it's known at definition time. For a custom adder, the user can pass it as keyword arguments to <code>QuantumAdder</code> or let it default to the most permissive setting (<code>supports_qq=True</code>, <code>modes="both"</code>).</p>
+<p>The point is that any function that dispatches to an adder can inspect these fields at runtime and make an informed decision, rather than calling the adder and hoping it works.</p>
+<h3 id="adder-selection">Adder selection</h3>
+<p>Today, <code>inpl_add</code> is hardcoded to call <code>thapliyal_procedure</code>. With <code>QuantumAdder</code> and capability metadata, it can accept any adder and validate it against the current context. If no adder is passed, it picks a sensible default. If the passed adder doesn't support the current execution mode or the input combination (for example, passing Gidney Venting for a quantum-quantum addition), it raises an error that explains what went wrong and which adders would work instead.</p>
+<p>This also opens the door to smarter defaults in the future. For instance, if both inputs are classical-quantum and the execution mode is dynamic, the dispatcher could prefer Gidney Venting for its low qubit cost. But for now, the goal is just to accept any <code>QuantumAdder</code> and validate it, not to build a full auto-selection heuristic.</p>
+<h3 id="type-pluggability">Type pluggability</h3>
+<p><code>inpl_add</code> becomes the single entry point for in-place addition, with an optional <code>adder</code> parameter typed as <code>QuantumAdder</code>. Instead of being hardcoded to one adder, it gives the user access to all of them:</p>
+<div class="highlight"><pre><span></span><code><span class="n">result</span> <span class="o">=</span> <span class="n">inpl_add</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">adder</span><span class="o">=</span><span class="n">gidney_adder</span><span class="p">)</span>
+</code></pre></div>
+<p>When no adder is passed, <code>inpl_add</code> picks a default based on the capability metadata: what execution mode is active, whether the inputs are classical-quantum or quantum-quantum, and what each adder supports. The user can override this by passing a specific adder, and the dispatcher validates that it's compatible with the current context before calling it.</p>
+<p>The same <code>adder</code> parameter propagates to higher-level operations like <code>multiply</code>, comparisons, and Montgomery reduction. Each of these ultimately calls <code>inpl_add</code> somewhere, and the adder choice flows down through the stack. A user who wants Gidney everywhere can pass it once at the top level of a quantum type, and every addition underneath uses it.</p>
+<h3 id="input-validation">Input validation</h3>
+<p>Input validation happens in two layers. The shared <code>_validate_adder_inputs(a, b)</code> function in <code>adder_utilities.py</code> handles the checks that apply to every adder: is <code>b</code> a quantum type? Is <code>a</code> a valid classical or quantum type? Are non-numeric types like <code>QuantumChar</code> and <code>QuantumString</code> rejected? This function is called by every adder, either directly or through the amending wrapper.</p>
+<p>The higher-level checks that depend on specific quantum types are handled by those types themselves, not by the adder or <code>inpl_add</code>. For example, <code>QuantumFloat.__iadd__</code> handles exponent alignment before calling the adder, and <code>QuantumModulus</code> handles modular reduction. By the time the adder is called, it only sees integer-valued qubit registers and classical values. <code>inpl_add</code> simply does addition of integer values.</p>
+<h2 id="unresolved-questions">Unresolved questions</h2>
+<ol>
+<li>
+<p><strong>How should the Fourier adder's <code>perform_QFT</code> flag work within the <code>QuantumAdder</code> interface?</strong> The flag lets users skip the QFT/inverse-QFT when chaining multiple additions in the Fourier basis. This is adder-specific state that doesn't fit the generic signature. Options: make it a parameter on the <code>QuantumAdder</code> instance, have the Fourier adder detect internally whether <code>b</code> is already in the Fourier basis, or handle it outside the adder entirely.</p>
+</li>
+<li>
+<p><strong>How should signed <code>QuantumFloat</code> overflow be handled?</strong> The proposed design states that type-specific concerns like signs are handled at the type level, not by the adder. But the overflow behavior still needs to be decided: should signed inputs be rejected at the adder level (with sign handling done entirely in <code>QuantumFloat.__iadd__</code>), should the adder do two's complement wraparound, or should it raise an error on overflow?</p>
+</li>
+<li>
+<p><strong>What verification strategy works in both static and dynamic mode?</strong> The current <code>inpl_adder_test</code> relies on statevector inspection, which is static-only. The refactored <code>.verify()</code> needs a single test path that works in both modes, consistent with the project's bias towards mode-agnostic code. Measurement-based checking is one option, but it trades exactness for statistical confidence.</p>
+</li>
+<li>
+<p><strong>What should the default adder be?</strong> When no adder is passed to <code>inpl_add</code>, it needs to pick one. The choice depends on what tradeoffs matter most by default (depth vs. ancilla count vs. gate count) and whether the default should vary by execution mode or input type.</p>
+</li>
+</ol>
+<h3 id="qubitarray-integration">QubitArray integration</h3>
+<p>There is a proposal to introduce a common <code>QubitArray</code> base class that unifies the static <code>list[Qubit]</code> and the dynamic <code>DynamicQubitArray</code> into a single type (see Raphael's proposal from Community Day). When that work lands:</p>
+<ul>
+<li><code>_validate_adder_inputs</code> simplifies from an isinstance chain to a check against <code>QubitArray | int</code>.</li>
+<li>The adder type signature becomes <code>(a: QubitArray | int, b: QubitArray)</code>, which type checkers can verify statically.</li>
+<li><code>ammend_inpl_adder</code>'s size-padding logic can use <code>QubitArray.size</code> instead of branching on <code>list</code> vs. <code>DynamicQubitArray</code>.</li>
+</ul>
+<p>None of this blocks the <code>QuantumAdder</code> class. The class and the validation function work with the register types Qrisp has today and will work with <code>QubitArray</code> when it arrives.</p>
+<h3 id="additional-adders">Additional adders</h3>
+<p>Two published adders are worth wrapping as <code>QuantumAdder</code> instances in a future release:</p>
+<ul>
+<li>
+<p><strong>Takahashi adder</strong> (<a href="https://arxiv.org/abs/0910.2530">arXiv:0910.2530</a>). An ancilla-free ripple-carry adder with O(n) depth and O(n^2) gates. It occupies a similar niche to the Remaud adder (no workspace qubits needed) but makes a different depth-vs-gate-count tradeoff. Adding it would give users a second zero-ancilla option.</p>
+</li>
+<li>
+<p><strong>DKRS adder</strong> (Draper-Kutin-Rains-Svore, <a href="https://arxiv.org/abs/quant-ph/0406142">arXiv:quant-ph/0406142</a>). A logarithmic-depth adder using O(n) ancillas. Once QCLA is removed, Qrisp will have no log-depth adder; DKRS would fill that gap with a cleaner construction.</p>
+</li>
+</ul>
+<p>Neither adder is needed for the initial <code>QuantumAdder</code> class. They can be implemented later and wrapped with <code>@QuantumAdder</code> the same way the existing adders are.</p>
+<h2 id="public-api-impact">Public API impact</h2>
+<h3 id="additions">Additions</h3>
+<ul>
+<li><code>QuantumAdder</code> class: new public type for wrapping adder functions.</li>
+<li><code>.ammend()</code> and <code>.verify()</code> methods on every wrapped adder.</li>
+<li><code>isinstance(x, QuantumAdder)</code> for type checking.</li>
+<li>Downstream functions (<code>inpl_add</code>, <code>multiply</code>, etc.) gain an optional <code>adder</code> parameter.</li>
+</ul>
+<h3 id="changes">Changes</h3>
+<ul>
+<li>Each built-in adder (<code>cuccaro_adder</code>, <code>gidney_adder</code>, etc.) becomes a <code>QuantumAdder</code> instance instead of a plain function. Since <code>QuantumAdder.__call__</code> delegates directly, existing code that calls these adders continues to work.</li>
+<li><code>inpl_add</code> accepts any <code>QuantumAdder</code> instead of only <code>"thapliyal"</code>.</li>
+</ul>
+<h3 id="removals">Removals</h3>
+<ul>
+<li><code>qcla</code> and all its helpers (<code>cq_qcla</code>, <code>qq_qcla</code>, the Brent-Kung tree implementations). Deprecated first, then removed.</li>
+</ul>
+<h3 id="migration">Migration</h3>
+<ul>
+<li><strong>Users calling adders directly</strong>: no change needed. <code>cuccaro_adder(a, b)</code> still works.</li>
+<li><strong>Users passing adders to <code>inpl_add</code></strong>: replace <code>adder="thapliyal"</code> with <code>adder=thapliyal_adder</code> (the wrapped instance).</li>
+<li><strong>Users with custom adders</strong>: wrap with <code>@QuantumAdder</code> or <code>QuantumAdder(my_func)</code> to get <code>.ammend()</code>, <code>.verify()</code>, and type compatibility.</li>
+</ul>
