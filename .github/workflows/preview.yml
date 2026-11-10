@@ -38,6 +38,7 @@ jobs:
               "tables",
               "sane_lists",
               "toc",
+              "pymdownx.arithmatex",
               "pymdownx.caret",
               "pymdownx.highlight",
               "pymdownx.magiclink",
@@ -48,11 +49,16 @@ jobs:
               "pymdownx.tilde",
           ]
 
+          extension_configs = {
+              "pymdownx.arithmatex": {"generic": True},
+          }
+
           files = sorted(Path("text").glob("*.md"))
           body = "\n".join(
               markdown.markdown(
                   path.read_text(encoding="utf-8"),
                   extensions=extensions,
+                  extension_configs=extension_configs,
               )
               for path in files
           )
@@ -104,6 +110,8 @@ jobs:
           (preview / "index.html").write_text(
               "<!doctype html><meta charset=utf-8><title>Qrisp RFC preview</title>"
               f"<style>{style}</style>"
+              "<script>MathJax={tex:{inlineMath:[['\\\\(','\\\\)']],displayMath:[['\\\\[','\\\\]']]}};</script>"
+              '<script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>'
               + body,
               encoding="utf-8",
           )
