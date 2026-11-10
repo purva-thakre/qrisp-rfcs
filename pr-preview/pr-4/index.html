@@ -107,7 +107,9 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 <p><code>QuantumFloat</code> currently serves double duty: it is the integer type when <code>exponent=0</code>
 and a fixed-point type otherwise. There is no dedicated integer class. <code>QuantumModulus</code>
 inherits from <code>QuantumFloat</code> directly, which forces it to suppress float-specific methods
-that would produce incorrect results on modular integers.</p>
+that would produce incorrect results on modular integers. Some of these are
+suppressed, but not all of them, and there is no systematic way to catch the ones
+that slip through.</p>
 <p>This RFC introduces <code>QuantumInt</code> as a subclass of <code>QuantumFloat</code> with <code>exponent</code> fixed
 to 0, and re-parents <code>QuantumModulus</code> under <code>QuantumInt</code>. The type hierarchy becomes:</p>
 <div class="highlight"><pre><span></span><code>QuantumVariable → QuantumFloat → QuantumInt → QuantumModulus
