@@ -39,8 +39,8 @@ But, as stated previously, they are all inconsistently defined in Qrisp. This se
 | `cuccaro_adder` | MAJ/UMA ripple carry | $O(n)$ | 1 | ✅ | ✅ | ✅ | Both | ✅ |
 | `gidney_adder` | AND-based ripple carry | $O(n)$ | $O(n)$ | ✅ | ✅ | ✅ | Both | ✅ |
 | `gidney_cq_venting` | Measured carry chain | $O(n)$ | 3 clean | ✅ | ✅ | ✅ | JASP only | ✅ |
-| `fourier_adder` | QFT + phase rotations | $O(n)$ | 0 | ❌* | ❌* | ❌* | Both | 🚧 |
-| `remaud_adder` | Ladder synthesis | $O(\log^2 n)$ | 0 | ❌* | ✅ | ❌* | Both | 🚧 |
+| `fourier_adder` | QFT + phase rotations | $O(n)$ parallel or $O(n^2)$| 0 | ❌* | ❌* | ❌* | Both | 🚧 |
+| `remaud_adder` | Log-depth ripple carry | $O(\log^2 n)$ | 0 | ❌* | ✅ | ❌* | Both | 🚧 |
 | `qcla` | Brent-Kung carry tree | $O(\log n)$ T-depth | $O(n)$ | ❌ | ❌ | ✅ | Both | Removing |
 | `thapliyal_adder` | TR-gate ripple carry | $O(n)$ | 1† | ❌* | ❌* | ❌* | Static only (old) | 🚧 |
 
@@ -170,11 +170,10 @@ Ideally, an in-place adder in Qrisp
     * Non-numeric quantum types `QuantumChar` and `QuantumString` should be rejected as either input.
 
     > [!NOTE]
-    > `QuantumBool` is a special case because its size is fixed at 1 qubit and cannot be set by the user, so it can only ever represent 0 or 1.
+    > `QuantumBool` is a special case as an input because its size is fixed at 1 qubit and cannot be set by the user, so it can only ever represent 0 or 1.
 
 * Should have a custom controlled version (`@custom_control`) compatible in both modes.
-* Should safely handle inputs of unequal sizes.
-    * The result always fits into the second input `b`.
+* Should safely handle inputs of unequal sizes as the result always has to fit into the second input `b`.
     * If the sum is larger than `b` can hold, it wraps around (the result is the sum modulo $2^{\text{len}(b)}$).
     * When `a` is larger than `b`, `a` is truncated to match `b`'s size.
     * When `a` is smaller, `a` is padded with ancilla qubits that are only used during the addition and safely removed afterward.
@@ -208,15 +207,15 @@ class QuantumAdder:
         return inpl_adder_test(ammended)
 ```
 
-When you call a `QuantumAdder` instance, it just calls the underlying function. Nothing about the adder's behavior changes at the call site. `functools.update_wrapper` copies over `__name__`, `__doc__`, and `__module__` from the raw function, so `help(cuccaro_adder)` still shows the original docstring and introspection works as expected.
+When you call a `QuantumAdder` instance, it just calls the underlying function. Nothing about the adder's behavior changes at the call site. Wrapping an adder in QuantumAdder does not change how it behaves when called. For example, existing code that calls `cuccaro_adder(a, b)` keeps working exactly as before.
 
-The `.ammend()` method wraps the raw adder through `ammend_inpl_adder` so it can handle mixed input types (different-sized registers, classical integers, etc.). The `.verify()` method ammends the adder first, then runs it through the standard `inpl_adder_test` correctness suite. This way a user who writes a custom adder doesn't have to know about either of those functions; they just call `.verify()` and get a pass/fail.
+The `.ammend()` method wraps the raw adder through `ammend_inpl_adder` so it can handle mixed input types (different-sized registers, classical integers, etc.). The `.verify()` method ammends the adder first, then runs it through the standard `inpl_adder_test` correctness suite. This way a user who writes a custom adder doesn't have to know about either of those functions; they just call `.verify()` and get a pass/fail confirming whther their custom adder indeed works as expected.
 
-Both `ammend_inpl_adder` and `inpl_adder_test` are being heavily refactored as part of this work. The current implementations are static-mode only, have reversed argument orders, and contain dead code. The refactored versions will work in both static and dynamic modes, follow the standard `(a, b)` argument order, and align with the `QuantumAdder` interface. The class definition above shows the intended API; the internals of `.ammend()` and `.verify()` will change significantly.
+Both `ammend_inpl_adder` and `inpl_adder_test` are being heavily refactored as part of this work. The current implementations are static-mode only, have reversed argument orders, and contain dead code. The refactored versions will work in both static and dynamic modes, follow the standard input argument order, and align with the `QuantumAdder` interface. The class definition above shows the intended API; the internals of `.ammend()` and `.verify()` will change significantly.
 
 ### Using as a decorator
 
-For users writing a new adder from scratch, `QuantumAdder` works as a decorator:
+For users writing a new custom adder from scratch, `QuantumAdder` works as a decorator:
 
 ```python
 @QuantumAdder
@@ -226,6 +225,16 @@ def my_custom_adder(a, b, c_in=None, c_out=None, ctrl=None):
 
 This is the intended way to define a new adder going forward. The decorator wraps the function at definition time, so `my_custom_adder` is immediately a `QuantumAdder` instance with `.ammend()` and `.verify()` available. You can still call it like a normal function.
 
+If the adder also needs `@custom_control` or another decorator, the stacking order matters: `@QuantumAdder` should be the outermost decorator so it wraps the fully decorated function. Alternatively, users can apply it post-hoc the same way the built-in adders do:
+
+```python
+@custom_control
+def my_custom_adder(a, b, c_in=None, c_out=None, ctrl=None):
+    ...
+
+my_custom_adder = QuantumAdder(my_custom_adder)
+```
+
 ### Wrapping existing adders
 
 The built-in adders already have their own decorators (several use `@custom_control`). Stacking `@QuantumAdder` on top of `@custom_control` could cause decorator interaction issues, so wrapping is applied post-hoc at the bottom of each adder's module instead:
@@ -234,24 +243,32 @@ The built-in adders already have their own decorators (several use `@custom_cont
 cuccaro_adder = QuantumAdder(cuccaro_adder)
 ```
 
-This reassigns the module-level name to the wrapped version. Existing imports that reference `cuccaro_adder` by name pick up the `QuantumAdder` instance, and since `__call__` delegates directly, all existing call sites keep working. The same pattern applies to every built-in adder that is being kept.
+This reassigns the module-level name to the wrapped version. Since `QuantumAdder` is callable, reassigning the module-level name means every existing import and call site keeps working without changes. The same pattern is used to wrap all the other built-in adders.
 
 ### Classical-quantum-only adders
 
 Most adders accept both quantum-quantum and classical-quantum input combinations. The Gidney Venting adder is the exception: it only works with classical-quantum inputs (the first argument must be an integer or `BigInteger`, never a quantum register). The `QuantumAdder` interface needs to handle this gracefully rather than letting the user hit a confusing error deep in the carry-venting logic.
 
-The solution is to let each adder declare what it supports up front, so downstream code can check before calling and either pick a different adder or raise a clear error message.
+The solution is to let each adder declare what it supports up front via metadata, so downstream code can check before calling and either pick a different adder or raise a clear error message.
 
 #### Capability metadata
 
 Each `QuantumAdder` instance carries metadata that describes what it can do:
 
+```python
+gidney_cq_venting_adder = QuantumAdder(
+    gidney_cq_venting_adder,
+    supports_qq=False,
+    modes="dynamic"
+)
+```
+
 - `supports_qq`: whether the adder accepts quantum-quantum input combinations. True for most adders, False for Gidney Venting.
 - `modes`: which execution modes the adder works in: `"static"`, `"dynamic"`, or `"both"`.
 
-This metadata is set when the adder is wrapped. For the built-in adders it's known at definition time. For a custom adder, the user can pass it as keyword arguments to `QuantumAdder` or let it default to the most permissive setting (`supports_qq=True`, `modes="both"`).
+For the built-in adders, the metadata is known upfront and set when the adder is wrapped. For a custom adder, the user declares it as keyword arguments to `QuantumAdder`. If they don’t, it defaults to the most permissive setting `(supports_qq=True, modes="both")`.
 
-The point is that any function that dispatches to an adder can inspect these fields at runtime and make an informed decision, rather than calling the adder and hoping it works.
+This lets any function that dispatches to an adder (like `inpl_add`) check these fields before calling it. If the user passes an adder that doesn’t support the current execution mode or input combination, the dispatcher raises a clear error instead of letting the adder fail deep in its internals with an unhelpful traceback.
 
 ### Adder selection
 
@@ -273,9 +290,9 @@ The same `adder` parameter propagates to higher-level operations like `multiply`
 
 ### Input validation
 
-Input validation happens in two layers. The shared `_validate_adder_inputs(a, b)` function in `adder_utilities.py` handles the checks that apply to every adder: is `b` a quantum type? Is `a` a valid classical or quantum type? Are non-numeric types like `QuantumChar` and `QuantumString` rejected? This function is called by every adder, either directly or through the amending wrapper.
+Input validation happens in two layers. The shared `_validate_adder_inputs(a, b)` function in `adder_utilities.py` handles the checks that apply to every adder: is `b` a quantum type? Is `a` a valid classical or quantum type? Are non-numeric types like `QuantumChar` and `QuantumString` rejected?
 
-The higher-level checks that depend on specific quantum types are handled by those types themselves, not by the adder or `inpl_add`. For example, `QuantumFloat.__iadd__` handles exponent alignment before calling the adder, and `QuantumModulus` handles modular reduction. By the time the adder is called, it only sees integer-valued qubit registers and classical values. `inpl_add` simply does addition of integer values.
+Everything above that is the responsibility of the quantum type, not the adder. Concerns like exponent alignment, sign handling, precision validation, and modular reduction are handled by each type’s own `__iadd__` before it dispatches to the adder. By the time the adder is called, it only sees integer-valued qubit registers and classical values. The details of what each type needs to do before calling the adder are left to the RFCs that refactor the methods for those types.
 
 
 ## Unresolved questions
@@ -283,21 +300,24 @@ The higher-level checks that depend on specific quantum types are handled by tho
 
 1. **How should the Fourier adder's `perform_QFT` flag work within the `QuantumAdder` interface?** The flag lets users skip the QFT/inverse-QFT when chaining multiple additions in the Fourier basis. This is adder-specific state that doesn't fit the generic signature. Options: make it a parameter on the `QuantumAdder` instance, have the Fourier adder detect internally whether `b` is already in the Fourier basis, or handle it outside the adder entirely.
 
-2. **How should signed `QuantumFloat` overflow be handled?** The proposed design states that type-specific concerns like signs are handled at the type level, not by the adder. But the overflow behavior still needs to be decided: should signed inputs be rejected at the adder level (with sign handling done entirely in `QuantumFloat.__iadd__`), should the adder do two's complement wraparound, or should it raise an error on overflow?
+2. **What verification strategy works in both static and dynamic mode?** The current `inpl_adder_test` relies on statevector inspection, which is static-only. The refactored `.verify()` needs a single test path that works in both modes, consistent with the project's bias towards mode-agnostic code. Measurement-based checking is one option, but it trades exactness for statistical confidence.
 
-3. **What verification strategy works in both static and dynamic mode?** The current `inpl_adder_test` relies on statevector inspection, which is static-only. The refactored `.verify()` needs a single test path that works in both modes, consistent with the project's bias towards mode-agnostic code. Measurement-based checking is one option, but it trades exactness for statistical confidence.
-
-4. **What should the default adder be?** When no adder is passed to `inpl_add`, it needs to pick one. The choice depends on what tradeoffs matter most by default (depth vs. ancilla count vs. gate count) and whether the default should vary by execution mode or input type.
-
-5. **How should `QuantumModulus` overflow be handled?** For example, for `QuantumModulus`, the result wraps at the modulus.
+3. **What should the default adder be?** When no adder is passed to `inpl_add`, it needs to pick one. The choice depends on what tradeoffs matter most by default (depth vs. ancilla count vs. gate count) and whether the default should vary by execution mode or input type.
 
 ### QubitArray integration
 
-There is a proposal to introduce a common `QubitArray` base class that unifies the static `list[Qubit]` and the dynamic `DynamicQubitArray` into a single type (see Raphael's proposal from Community Day). When that work lands:
+There is a proposal to introduce a common `QubitArray` base class that both static
+and dynamic modes share, giving them a uniform interface for `.size`, indexing, and
+slicing (see Raphael's typing proposal from Community Day). When that work lands:
 
-- `_validate_adder_inputs` simplifies from an isinstance chain to a check against `QubitArray | int`.
-- The adder type signature becomes `(a: QubitArray | int, b: QubitArray)`, which type checkers can verify statically.
-- `ammend_inpl_adder`'s size-padding logic can use `QubitArray.size` instead of branching on `list` vs. `DynamicQubitArray`.
+- `_validate_adder_inputs` simplifies from an isinstance chain to a check against
+  `QubitArray | int`.
+- The adder type signature becomes `(a: QubitArray | int, b: QubitArray)`, which
+  type checkers can verify statically.
+- `ammend_inpl_adder`'s size-padding logic can use `QubitArray.size` instead of
+  branching on `list` vs. `DynamicQubitArray`.
+- Finally, the typing aliases for adder inputs currently in the shared helpers folder become
+  redundant and can be removed.
 
 None of this blocks the `QuantumAdder` class. The class and the validation function work with the register types Qrisp has today and will work with `QubitArray` when it arrives.
 
@@ -309,7 +329,7 @@ Two published adders are worth wrapping as `QuantumAdder` instances in a future 
 
 - **DKRS adder** (Draper-Kutin-Rains-Svore, [arXiv:quant-ph/0406142](https://arxiv.org/abs/quant-ph/0406142)). A logarithmic-depth adder using O(n) ancillas. Once QCLA is removed, Qrisp will have no log-depth adder; DKRS would fill that gap with a cleaner construction.
 
-Neither adder is needed for the initial `QuantumAdder` class. They can be implemented later and wrapped with `@QuantumAdder` the same way the existing adders are.
+Neither adder is needed for the initial `QuantumAdder` class. They can be implemented later and wrapped with `@QuantumAdder` the same way the existing adders are. For this reason, these adders will be opened up for contributions from community members. 
 
 ## Public API impact
 [public-api-impact]: #public-api-impact
@@ -317,14 +337,14 @@ Neither adder is needed for the initial `QuantumAdder` class. They can be implem
 ### Additions
 
 - `QuantumAdder` class: new public type for wrapping adder functions.
-- `.ammend()` and `.verify()` methods on every wrapped adder.
+- `.ammend()` and `.verify()` methods on every wrapped adder with `ammend` renamed to `amend`.
 - `isinstance(x, QuantumAdder)` for type checking.
 - Downstream functions (`inpl_add`, `multiply`, etc.) gain an optional `adder` parameter.
 
 ### Changes
 
-- Each built-in adder (`cuccaro_adder`, `gidney_adder`, etc.) becomes a `QuantumAdder` instance instead of a plain function. Since `QuantumAdder.__call__` delegates directly, existing code that calls these adders continues to work.
-- `inpl_add` accepts any `QuantumAdder` instead of only `"thapliyal"`.
+- Each built-in adder (`cuccaro_adder`, `gidney_adder`, etc.) becomes a `QuantumAdder` instance instead of a plain function. Since `QuantumAdder.__call__` just passes arguments through to the wrapped function, existing code that calls these adders does not need to change.
+- `inpl_add` accepts any in-place `QuantumAdder` instead of only `"thapliyal"`.
 
 ### Removals
 
