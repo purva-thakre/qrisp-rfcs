@@ -310,6 +310,9 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 <li>The second input's size is never adjusted because ancilla qubits written during the addition cannot be safely removed.</li>
 </ul>
 </li>
+<li>Should leave the first input <code>a</code> unchanged. </li>
+<li>Should cleanup any ancillas that were allocated internally in an adder to compute the in-place addition.</li>
+<li>Should not leave behind any spurious phases on the output. </li>
 </ul>
 <div class="alert warning"><p class="alert-title">Warning</p><p>The existing function is spelled <code>ammend_inpl_adder</code> (double m). This will be corrected to <code>amend</code> as part of this refactoring. All references to <code>ammend</code> in this document use the current spelling for clarity, but the final implementation will use <code>amend</code> everywhere.</p></div>
 
