@@ -162,13 +162,106 @@ Ideally, an in-place adder in Qrisp
     * The `c_in` parameter may be a `Qubit`, a `QuantumVariable` of size 1 (including `QuantumBool`), a single-element `list[Qubit]`, or a classical value of 0 or 1. The adder computes $b \leftarrow (a + b + c_{in}) \mod 2^{\text{len}(b)}$.
     * The `c_out` parameter may be a `Qubit`, a `QuantumVariable` of size 1 (including `QuantumBool`), or a single-element `list[Qubit]`. The adder computes $c_{out} \leftarrow c_{out} \oplus \text{carry}$, so that `c_out` holds the bit that would otherwise be discarded on wraparound.
     * Adders that do not natively support carry operations declare this in their metadata; for these, `.amend()` emulates the carry logic. In this emulation, `c_out` is treated as an extra most significant bit of `b`, and `c_in` is incorporated by means of a controlled increment.
-* Should accept all types that allow an end user to encode an int or a float value into the quantum type: `QuantumVariable`, `QuantumFloat`, `QuantumInt` (see the next tab where `QuantumFloat` is going to be split into `QuantumInt` and `QuantumFloat`), `QuantumModulus`, `QuantumBool`, `DynamicQubitArray`, and `list[Qubit]`.
+* Should accept all types that allow an end user to encode an int or a float value into the quantum type: `QuantumVariable`, `QuantumFloat`, `QuantumInt` (see the next RFC where `QuantumFloat` is going to be split into `QuantumInt` and `QuantumFloat`), `QuantumModulus`, `QuantumBool`, `DynamicQubitArray`, and `list[Qubit]`.
     * The first argument can also be a classical value: `int`, `np.integer`, `str` (binary string), `BigInteger`, or a traced JAX scalar in dynamic mode.
     * Non-numeric quantum types `QuantumChar` and `QuantumString` should be rejected as either input.
 * Should have a custom controlled version (`@custom_control`) compatible in both modes.
 * Should safely handle inputs of unequal sizes. The result always fits into the second input `b`. If the sum is larger than `b` can hold, it wraps around (the result is the sum modulo $2^{\text{len}(b)}$). When `a` is larger than `b`, `a` is truncated to match `b`'s size. When `a` is smaller, `a` is padded with ancilla qubits that are only used during the addition and safely removed afterward. The second input's size is never adjusted because ancilla qubits written during the addition cannot be safely removed.
     * For `QuantumModulus`, the result wraps at the modulus.
     * For signed `QuantumFloat`, overflow handling needs to be decided: options include rejecting signed inputs at the adder level (handling the sign bit at a higher level), two's complement wraparound, or raising an error on overflow.
+
+
+### Class definition
+
+The `QuantumAdder` class is intentionally thin. It wraps an existing adder function without changing how that function behaves when called. The wrapper just gives the function a type you can check against and puts the tooling (amending, verification) in a place where users can find it.
+
+```python
+import functools
+
+class QuantumAdder:
+    def __init__(self, func):
+        self._raw = func
+        functools.update_wrapper(self, func)
+
+    def __call__(self, *args, **kwargs):
+        return self._raw(*args, **kwargs)
+
+    def ammend(self, ammend_cl_int=True):
+        """Return an ammended version via ammend_inpl_adder."""
+        return ammend_inpl_adder(self._raw, ammend_cl_int=ammend_cl_int)
+
+    def verify(self):
+        """Verify correctness via inpl_adder_test (ammends internally first)."""
+        ammended = self.ammend()
+        return inpl_adder_test(ammended)
+```
+
+When you call a `QuantumAdder` instance, it just calls the underlying function. Nothing about the adder's behavior changes at the call site. `functools.update_wrapper` copies over `__name__`, `__doc__`, and `__module__` from the raw function, so `help(cuccaro_adder)` still shows the original docstring and introspection works as expected.
+
+The `.ammend()` method wraps the raw adder through `ammend_inpl_adder` so it can handle mixed input types (different-sized registers, classical integers, etc.). The `.verify()` method ammends the adder first, then runs it through the standard `inpl_adder_test` correctness suite. This way a user who writes a custom adder doesn't have to know about either of those functions; they just call `.verify()` and get a pass/fail.
+
+### Using as a decorator
+
+For users writing a new adder from scratch, `QuantumAdder` works as a decorator:
+
+```python
+@QuantumAdder
+def my_custom_adder(a, b, c_in=None, c_out=None, ctrl=None):
+    ...
+```
+
+This is the intended way to define a new adder going forward. The decorator wraps the function at definition time, so `my_custom_adder` is immediately a `QuantumAdder` instance with `.ammend()` and `.verify()` available. You can still call it like a normal function.
+
+### Wrapping existing adders
+
+The built-in adders already have their own decorators (several use `@custom_control`). Stacking `@QuantumAdder` on top of `@custom_control` could cause decorator interaction issues, so wrapping is applied post-hoc at the bottom of each adder's module instead:
+
+```python
+cuccaro_adder = QuantumAdder(cuccaro_adder)
+```
+
+This reassigns the module-level name to the wrapped version. Existing imports that reference `cuccaro_adder` by name pick up the `QuantumAdder` instance, and since `__call__` delegates directly, all existing call sites keep working. The same pattern applies to every built-in adder that is being kept.
+
+### Classical-quantum-only adders
+
+Most adders accept both quantum-quantum and classical-quantum input combinations. The Gidney Venting adder is the exception: it only works with classical-quantum inputs (the first argument must be an integer or `BigInteger`, never a quantum register). The `QuantumAdder` interface needs to handle this gracefully rather than letting the user hit a confusing error deep in the carry-venting logic.
+
+The solution is to let each adder declare what it supports up front, so downstream code can check before calling and either pick a different adder or raise a clear error message.
+
+### Capability metadata
+
+Each `QuantumAdder` instance carries metadata that describes what it can do:
+
+- `supports_qq`: whether the adder accepts quantum-quantum input combinations. True for most adders, False for Gidney Venting.
+- `modes`: which execution modes the adder works in: `"static"`, `"dynamic"`, or `"both"`.
+
+This metadata is set when the adder is wrapped. For the built-in adders it's known at definition time. For a custom adder, the user can pass it as keyword arguments to `QuantumAdder` or let it default to the most permissive setting (`supports_qq=True`, `modes="both"`).
+
+The point is that any function that dispatches to an adder can inspect these fields at runtime and make an informed decision, rather than calling the adder and hoping it works.
+
+### Adder selection
+
+Today, `inpl_add` is hardcoded to call `thapliyal_procedure`. With `QuantumAdder` and capability metadata, it can accept any adder and validate it against the current context. If no adder is passed, it picks a sensible default. If the passed adder doesn't support the current execution mode or the input combination (for example, passing Gidney Venting for a quantum-quantum addition), it raises an error that explains what went wrong and which adders would work instead.
+
+This also opens the door to smarter defaults in the future. For instance, if both inputs are classical-quantum and the execution mode is dynamic, the dispatcher could prefer Gidney Venting for its low qubit cost. But for now, the goal is just to accept any `QuantumAdder` and validate it, not to build a full auto-selection heuristic.
+
+### Type pluggability
+
+Any arithmetic function that currently hardcodes a specific adder gains an optional `adder` parameter typed as `QuantumAdder`. The user can pass whichever adder suits their use case:
+
+```python
+result = inpl_add(a, b, adder=gidney_adder)
+```
+
+This applies to `inpl_add` first (since it's the main dispatcher), but the same pattern extends to higher-level operations like `multiply`, comparisons, and Montgomery reduction. Each of these ultimately calls an in-place adder somewhere, and the `adder` parameter lets that choice propagate down through the stack. A user who wants Gidney everywhere can pass it once at the top level, and every addition underneath uses it.
+
+### Input validation
+
+Input validation happens in two layers. The shared `_validate_adder_inputs(a, b)` function in `adder_utilities.py` handles the checks that apply to every adder: is `b` a quantum type? Is `a` a valid classical or quantum type? Are non-numeric types like `QuantumChar` and `QuantumString` rejected? This function is called by every adder, either directly or through the amending wrapper.
+
+The higher-level checks that depend on specific quantum types stay where they are. For example, `inpl_add` still handles exponent alignment for `QuantumFloat`, sign compatibility for signed types, and overflow detection. These are not the adder's responsibility; the adder only sees integer-valued qubit registers and classical values by the time it's called.
+
+
 
 ## Unresolved questions
 [unresolved-questions]: #unresolved-questions
