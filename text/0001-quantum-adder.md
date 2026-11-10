@@ -145,6 +145,9 @@ The low-level helpers that were duplicated across adder files have been moved in
 
 - `ammend_inpl_adder(raw_inpl_adder, ammend_cl_int=True)` in `adder_tools.py` takes a raw adder function and wraps it so it can handle mixed input types: padding shorter registers, truncating longer ones, and encoding classical integers into temporary quantum variables. This only works in static mode; in dynamic mode the wrapper does nothing and passes the arguments through unchanged. The function also has a reversed argument order compared to the raw adders, dead code that is never reached, and no way to discover it exists unless you read the source.
 
+> [!WARNING]
+> The existing function is spelled `ammend_inpl_adder` (double m). This will be corrected to `amend` as part of this refactoring. All references to `ammend` in this document use the current spelling for clarity, but the final implementation will use `amend` everywhere.
+
 - `inpl_adder_test(inpl_adder)` in `utility.py` runs a correctness test suite on an amended adder: quantum-quantum and classical-quantum addition, both uncontrolled and controlled, for register sizes 1-6. It also checks for spurious phase introduction. The problem is that it is nowhere near the adder code and is also not compatible in dynamic mode.
 
 - `inpl_add(qf1, qf2, ..., adder="thapliyal")` in `ripple_carry_adder.py` is the `QuantumFloat`-level addition dispatcher. It handles exponent alignment, sign handling, and ancilla management, then calls an adder for the actual bit-level addition. Despite having an `adder` parameter, it only accepts `"thapliyal"`. The one place that handles `QuantumFloat` alignment is hardcoded to one adder and works only in static mode.
@@ -165,6 +168,10 @@ Ideally, an in-place adder in Qrisp
 * Should accept all types that allow an end user to encode an int or a float value into the quantum type: `QuantumVariable`, `QuantumFloat`, `QuantumInt` (see the next RFC where `QuantumFloat` is going to be split into `QuantumInt` and `QuantumFloat`), `QuantumModulus`, `QuantumBool`, `DynamicQubitArray`, and `list[Qubit]`.
     * The first argument can also be a classical value: `int`, `np.integer`, `str` (binary string), `BigInteger`, or a traced JAX scalar in dynamic mode.
     * Non-numeric quantum types `QuantumChar` and `QuantumString` should be rejected as either input.
+
+    > [!NOTE]
+    > `QuantumBool` is a special case because its size is fixed at 1 qubit and cannot be set by the user, so it can only ever represent 0 or 1.
+
 * Should have a custom controlled version (`@custom_control`) compatible in both modes.
 * Should safely handle inputs of unequal sizes.
     * The result always fits into the second input `b`.
@@ -175,9 +182,6 @@ Ideally, an in-place adder in Qrisp
 * Should leave the first input `a` unchanged. 
 * Should cleanup any ancillas that were allocated internally in an adder to compute the in-place addition.
 * Should not leave behind any spurious phases on the output. 
-
-> [!WARNING]
-> The existing function is spelled `ammend_inpl_adder` (double m). This will be corrected to `amend` as part of this refactoring. All references to `ammend` in this document use the current spelling for clarity, but the final implementation will use `amend` everywhere.
 
 ### Class definition
 
