@@ -108,11 +108,7 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 <p>This RFC introduces <code>QuantumInt</code> as a subclass of <code>QuantumFloat</code> with <code>exponent</code> fixed to 0, and re-parents <code>QuantumModulus</code> under <code>QuantumInt</code>. The type hierarchy becomes:</p>
 <div class="highlight"><pre><span></span><code>QuantumVariable → QuantumFloat → QuantumInt → QuantumModulus
 </code></pre></div>
-<p>By separating integer arithmetic from floating-point arithmetic, modular types gain a clean base type that carries no float-only operations. The integer/float boundary becomes explicit in the type hierarchy rather than something each subclass has to enforce manually by suppression. Once the adders work in both modes (RFC 001) and SBP is deprecated (RFC 003), the
-<code>check_for_tracing_mode()</code> branches in the arithmetic methods can be removed entirely.
-<code>QuantumFloat</code>'s arithmetic methods become straightforward: align exponents, then call
-the adder. <code>QuantumInt</code> inherits the same methods, but since its exponent is always 0,
-the alignment step does nothing and the methods reduce to plain adder calls.</p>
+<p>By separating integer arithmetic from floating-point arithmetic, modular types gain a clean base type that carries no float-only operations. The integer/float boundary becomes explicit in the type hierarchy rather than something each subclass has to enforce manually by suppression. Once the adders work in both modes (RFC 001) and SBP arithmetic module is deprecated (RFC 003), the <code>check_for_tracing_mode()</code> branches in the arithmetic methods can be removed entirely. <code>QuantumFloat</code>'s arithmetic methods become straightforward: align exponents, then call the adder. <code>QuantumInt</code> inherits the same methods, but since its exponent is always 0, the alignment step does nothing and the methods reduce to plain adder calls.</p>
 <h2 id="motivation">Motivation</h2>
 <h2 id="background-and-current-architecture">Background and current architecture</h2>
 <p>TODO: Describe the current addition code paths, the duplication or inconsistency they cause, and the constraints the design must account for.</p>
