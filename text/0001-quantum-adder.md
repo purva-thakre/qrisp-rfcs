@@ -259,16 +259,22 @@ Each `QuantumAdder` instance carries metadata that describes what it can do:
 gidney_cq_venting_adder = QuantumAdder(
     gidney_cq_venting_adder,
     supports_qq=False,
-    modes="dynamic"
+    supports_cq=True,
+    supports_control=True,
+    supports_carry_in=True,
+    modes="dynamic",
 )
 ```
 
 - `supports_qq`: whether the adder accepts quantum-quantum input combinations. True for most adders, False for Gidney Venting.
-- `modes`: which execution modes the adder works in: `"static"`, `"dynamic"`, or `"both"`.
+- `supports_cq`: whether the adder accepts classical-quantum input combinations. This is `True` for all in-place adders.
+- `supports_control`: whether the adder natively supports a control qubit. This option is reserved for future work; support for it may be added in a later release.
+- `supports_carry_in`: whether the adder natively supports carry-in. Adders that do not support it can still expose carry behavior through `.amend()`, which emulates it.
+- `modes`: which execution modes the adder works in: `"static"`, `"dynamic"`, or `"both"`. `"both"` means the adder is mode agnostic.
 
-For the built-in adders, the metadata is known upfront and set when the adder is wrapped. For a custom adder, the user declares it as keyword arguments to `QuantumAdder`. If they don’t, it defaults to the most permissive setting `(supports_qq=True, modes="both")`.
+For the built-in adders, the metadata is known upfront and set when the adder is wrapped. For a custom adder, the user declares it as keyword arguments to `QuantumAdder`. If they don’t, it defaults to the most permissive setting `(supports_qq=True, supports_cq=True, supports_control=True, supports_carry_in=True, modes="both")`.
 
-This lets any function that dispatches to an adder (like `inpl_add`) check these fields before calling it. If the user passes an adder that doesn’t support the current execution mode or input combination, the dispatcher raises a clear error instead of letting the adder fail deep in its internals with an unhelpful traceback.
+This lets any function that dispatches to an adder (like `inpl_add`) check these fields before calling it. If the user passes an adder that doesn’t support the current execution mode, input combination, or requested control/carry behavior, the dispatcher raises a clear error instead of letting the adder fail deep in its internals with an unhelpful traceback.
 
 ### Adder selection
 
