@@ -190,26 +190,100 @@ The `QuantumAdder` class is intentionally thin. It wraps an existing adder funct
 import functools
 
 class QuantumAdder:
-    def __init__(self, func):
+    def __init__(self, func, capabilities=None):
         self._raw = func
+        self.capabilities = capabilities or AdderCapabilities()
         functools.update_wrapper(self, func)
 
     def __call__(self, *args, **kwargs):
         return self._raw(*args, **kwargs)
 
+    def validate(self, a, b, c_in=None, c_out=None, ctrl=None, mode=None):
+        """Check that this adder supports the given arguments.
+
+        Returns True if it does; raises ValueError naming the unsupported
+        capability (inputs, mode, carries, control, or classical type) otherwise.
+        """
+        if not self.capabilities.supports(
+            inputs=_input_combination(a, b),
+            mode=mode,
+            carries=_requested_carries(c_in, c_out),
+            control=ctrl is not None,
+            classical_type=_classical_type(a),
+        ):
+            raise ValueError(...)
+        return True
+
     def ammend(self, ammend_cl_int=True):
-        """Return an ammended version via ammend_inpl_adder."""
-        return ammend_inpl_adder(self._raw, ammend_cl_int=ammend_cl_int)
+        """Return an amended QuantumAdder via ammend_inpl_adder."""
+        return QuantumAdder(
+            ammend_inpl_adder(self._raw, ammend_cl_int=ammend_cl_int),
+            capabilities=self.capabilities.extended(
+                carries=AdderCapabilities.CARRY_IN | AdderCapabilities.CARRY_OUT,
+                control=True,
+            ),
+        )
 
     def verify(self):
         """Verify correctness via inpl_adder_test (ammends internally first)."""
-        ammended = self.ammend()
-        return inpl_adder_test(ammended)
+        return inpl_adder_test(self.ammend())
+```
+
+Before the capability check runs, three private helpers classify the arguments into terms the capability object understands. `_input_combination` figures out whether the call is classical-quantum or quantum-quantum. `_requested_carries` checks whether carry-in or carry-out qubits were passed. `_classical_type` identifies the type of a classical first operand (if there is one). All three are implementation details that will be written alongside the class.
+
+Each adder's capabilities live in a small, immutable `AdderCapabilities` dataclass. The shorthand constants sit on the class itself (`AdderCapabilities.CQ`, and so on) so they don't clutter the module namespace.
+
+`AdderCapabilities` is how an adder says what it can and can't do. Can the first operand be quantum, or only classical? Which classical types? Does the adder work in static mode, dynamic mode, or both? Does it support carry-in and carry-out? A control qubit? How many ancillas does it need, roughly? How deep is the circuit? The object answers all of these, but it never does any addition itself. It is just a description that lets the dispatcher and `validate()` decide whether a call makes sense before it happens, and raise a clear error when it doesn't.
+
+```python
+from dataclasses import dataclass, replace
+
+@dataclass(frozen=True)
+class AdderCapabilities:
+    CQ = frozenset({"cq"})
+    QQ = frozenset({"qq"})
+    STATIC = frozenset({"static"})
+    DYNAMIC = frozenset({"dynamic"})
+    BOTH = STATIC | DYNAMIC
+    CARRY_IN = frozenset({"in"})
+    CARRY_OUT = frozenset({"out"})
+
+    inputs: frozenset[str] = CQ                 # subset of {"cq", "qq"}
+    modes: frozenset[str] = STATIC              # subset of {"static", "dynamic"}
+    carries: frozenset[str] = frozenset()       # subset of {"in", "out"}
+    control: bool = False
+    classical_types: frozenset[str] = frozenset({"int", "BigInteger", "str"})
+    # planning hints, not correctness guarantees
+    ancillas: int | str | None = None
+    depth: str | None = None
+    min_size: int | None = None
+
+    def __post_init__(self):
+        assert "cq" in self.inputs, "every in-place adder supports cq"
+
+    def extended(self, **overrides):
+        """Return a copy with some capabilities widened."""
+        return replace(self, **overrides)
+
+    def supports(self, *, inputs=None, mode=None, carries=(), control=False,
+                 classical_type=None):
+        """Return True if this adder handles all the requested capabilities."""
+        if inputs is not None and not inputs <= self.inputs:
+            return False
+        if mode is not None and mode not in self.modes:
+            return False
+        if not frozenset(carries) <= self.carries:
+            return False
+        if classical_type is not None and classical_type not in self.classical_types:
+            return False
+        if control and not self.control:
+            return False
+        return True
 ```
 
 When you call a `QuantumAdder` instance, it just calls the underlying function. Nothing about the adder's behavior changes at the call site. Wrapping an adder in QuantumAdder does not change how it behaves when called. For example, existing code that calls `cuccaro_adder(a, b)` keeps working exactly as before.
 
-The `.ammend()` method wraps the raw adder through `ammend_inpl_adder` so it can handle mixed input types (different-sized registers, classical integers, etc.). The `.verify()` method ammends the adder first, then runs it through the standard `inpl_adder_test` correctness suite. This way a user who writes a custom adder doesn't have to know about either of those functions; they just call `.verify()` and get a pass/fail confirming whther their custom adder indeed works as expected.
+The `.ammend()` method wraps the raw adder through `ammend_inpl_adder` so it can handle mixed input types (different-sized registers, classical integers, etc.). It returns a new `QuantumAdder` whose capabilities are expanded to reflect what the amended wrapper can now handle, so capability checks remain accurate. The `.verify()` method ammends the adder first, then runs it through the standard `inpl_adder_test` correctness suite. This way a user who writes a custom adder doesn't have to know about either of those functions; they just call `.verify()` and get a pass/fail confirming whther their custom adder indeed works as expected.
 
 Both `ammend_inpl_adder` and `inpl_adder_test` are being heavily refactored as part of this work. The current implementations are static-mode only, have reversed argument orders, and contain dead code. The refactored versions will work in both static and dynamic modes, follow the standard input argument order, and align with the `QuantumAdder` interface. The class definition above shows the intended API; the internals of `.ammend()` and `.verify()` will change significantly.
 
@@ -223,7 +297,19 @@ def my_custom_adder(a, b, c_in=None, c_out=None, ctrl=None):
     ...
 ```
 
-This is the intended way to define a new adder going forward. The decorator wraps the function at definition time, so `my_custom_adder` is immediately a `QuantumAdder` instance with `.ammend()` and `.verify()` available. You can still call it like a normal function.
+This is the intended way to define a new adder going forward. The decorator wraps the function at definition time, so `my_custom_adder` is immediately a `QuantumAdder` instance with `.ammend()` and `.verify()` available. You can still call it like a normal function. The bare decorator applies conservative default capabilities; to declare capabilities explicitly, wrap the function post-hoc:
+
+```python
+my_custom_adder = QuantumAdder(
+    my_custom_adder,
+    capabilities=AdderCapabilities(
+        inputs=AdderCapabilities.CQ | AdderCapabilities.QQ,
+        modes=AdderCapabilities.BOTH,
+        carries=AdderCapabilities.CARRY_IN | AdderCapabilities.CARRY_OUT,
+        control=True,
+    ),
+)
+```
 
 If the adder also needs `@custom_control` or another decorator, the stacking order matters: `@QuantumAdder` should be the outermost decorator so it wraps the fully decorated function. Alternatively, users can apply it post-hoc the same way the built-in adders do:
 
@@ -240,10 +326,19 @@ my_custom_adder = QuantumAdder(my_custom_adder)
 The built-in adders already have their own decorators (several use `@custom_control`). Stacking `@QuantumAdder` on top of `@custom_control` could cause decorator interaction issues, so wrapping is applied post-hoc at the bottom of each adder's module instead:
 
 ```python
-cuccaro_adder = QuantumAdder(cuccaro_adder)
+CUCCARO_CAPABILITIES = AdderCapabilities(
+    inputs=AdderCapabilities.CQ | AdderCapabilities.QQ,
+    modes=AdderCapabilities.BOTH,
+    carries=AdderCapabilities.CARRY_IN | AdderCapabilities.CARRY_OUT,
+    control=True,
+    ancillas=1,
+    depth="O(n)",
+)
+
+cuccaro_adder = QuantumAdder(cuccaro_adder, capabilities=CUCCARO_CAPABILITIES)
 ```
 
-This reassigns the module-level name to the wrapped version. Since `QuantumAdder` is callable, reassigning the module-level name means every existing import and call site keeps working without changes. The same pattern is used to wrap all the other built-in adders.
+This reassigns the module-level name to the wrapped version. Since `QuantumAdder` is callable, reassigning the module-level name means every existing import and call site keeps working without changes. Each built-in adder declares its own capability object at its module level. The same pattern is used to wrap all the other built-in adders.
 
 ### Classical-quantum-only adders
 
@@ -253,34 +348,46 @@ The solution is to let each adder declare what it supports up front via metadata
 
 #### Capability metadata
 
-Each `QuantumAdder` instance carries metadata that describes what it can do:
+Each `QuantumAdder` instance carries an `AdderCapabilities` object (defined alongside the class above) that describes what the adder natively supports. Rather than a growing set of independent booleans, the capability object groups related options into sets. Cuccaro, for example, is fully capable: its `CUCCARO_CAPABILITIES` (shown above) declares `inputs=AdderCapabilities.CQ | AdderCapabilities.QQ`, `modes=AdderCapabilities.BOTH`, `carries=AdderCapabilities.CARRY_IN | AdderCapabilities.CARRY_OUT`, and `control=True`.
+
+Gidney Venting, by contrast, is classical-quantum only and dynamic only:
 
 ```python
 gidney_cq_venting_adder = QuantumAdder(
     gidney_cq_venting_adder,
-    supports_qq=False,
-    supports_cq=True,
-    supports_control=True,
-    supports_carry_in=True,
-    modes="dynamic",
+    capabilities=AdderCapabilities(
+        inputs=AdderCapabilities.CQ,
+        modes=AdderCapabilities.DYNAMIC,
+        carries=AdderCapabilities.CARRY_IN | AdderCapabilities.CARRY_OUT,
+        control=True,
+        classical_types=frozenset({"int", "BigInteger"}),
+        ancillas=3,
+        depth="O(n)",
+        min_size=6,
+    ),
 )
 ```
 
-- `supports_qq`: whether the adder accepts quantum-quantum input combinations. True for most adders, False for Gidney Venting.
-- `supports_cq`: whether the adder accepts classical-quantum input combinations. This is `True` for all in-place adders.
-- `supports_control`: whether the adder natively supports a control qubit. This option is reserved for future work; support for it may be added in a later release.
-- `supports_carry_in`: whether the adder natively supports carry-in. Adders that do not support it can still expose carry behavior through `.amend()`, which emulates it.
-- `modes`: which execution modes the adder works in: `"static"`, `"dynamic"`, or `"both"`. `"both"` means the adder is mode agnostic.
+The fields mean:
 
-For the built-in adders, the metadata is known upfront and set when the adder is wrapped. For a custom adder, the user declares it as keyword arguments to `QuantumAdder`. If they don’t, it defaults to the most permissive setting `(supports_qq=True, supports_cq=True, supports_control=True, supports_carry_in=True, modes="both")`.
+- `inputs`: which input combinations the adder accepts. Every in-place adder supports `"cq"` (classical-quantum), so it is always present; `"qq"` (quantum-quantum) is added only when supported. There is no separate `supports_cq` flag because it is an invariant.
+- `modes`: which execution modes the adder works in, as a subset of `{"static", "dynamic"}`. `AdderCapabilities.BOTH` means the adder is mode agnostic.
+- `carries`: which carry directions the adder natively supports, as a subset of `{"in", "out"}`. This distinguishes adders that support only carry-out (for example Remaud) from those that support both.
+- `control`: whether the adder natively supports a control qubit. Control support is already live for the reference adders (Cuccaro and Gidney); other adders may gain it as they are refactored.
+- `classical_types`: which classical types are accepted for the first operand. Both `supports()` and `validate()` check this when a classical first operand is passed.
+- `ancillas`, `depth`, `min_size`: optional planning hints used by adder selection. These are for display and coarse selection only, not numerical cost comparison; `ancillas` deliberately accepts either a concrete count (`1`) or a complexity expression (`"O(n)"`). `min_size` is consumed by the `inpl_add` dispatcher, not by users; an adder may still implement its own fallback internally, as Gidney Venting does for registers smaller than 6 qubits.
 
-This lets any function that dispatches to an adder (like `inpl_add`) check these fields before calling it. If the user passes an adder that doesn’t support the current execution mode, input combination, or requested control/carry behavior, the dispatcher raises a clear error instead of letting the adder fail deep in its internals with an unhelpful traceback.
+The metadata describes native support. `.ammend()` returns a new `QuantumAdder` with expanded capabilities for anything the amendment layer synthesizes (for example, carry-in/carry-out emulation), so later capability checks reflect the amended behavior.
+
+For the built-in adders, the metadata is known upfront and set when the adder is wrapped. For a custom adder, capabilities are passed to `QuantumAdder`; if omitted, the conservative defaults apply (`inputs=AdderCapabilities.CQ`, `modes=AdderCapabilities.STATIC`, no carries, no control) rather than assuming the adder is fully capable. `.verify()` can then confirm the behavior before the user relies on it.
+
+Any function that dispatches to an adder (like `inpl_add`) calls `QuantumAdder.validate(...)` before invoking it. If the adder doesn't support the current execution mode, input combination, classical type, or requested control/carry behavior, validation raises a clear error instead of letting the adder fail deep in its internals with an unhelpful traceback. Direct callers can use the same `validate(...)` method.
 
 ### Adder selection
 
-Today, `inpl_add` is hardcoded to call `thapliyal_procedure`. With `QuantumAdder` and capability metadata, it can accept any adder and validate it against the current context. If no adder is passed, it picks a sensible default. If the passed adder doesn't support the current execution mode or the input combination (for example, passing Gidney Venting for a quantum-quantum addition), it raises an error that explains what went wrong and which adders would work instead.
+Today, `inpl_add` is hardcoded to call `thapliyal_procedure`. With `QuantumAdder` and capability metadata, it can accept any adder and validate it against the current context. If no adder is passed, it picks a sensible default. If the passed adder doesn't support the current execution mode or the input combination (for example, passing Gidney Venting for a quantum-quantum addition), `validate(...)` raises an error that explains what went wrong and which adders would work instead.
 
-This also opens the door to smarter defaults in the future. For instance, if both inputs are classical-quantum and the execution mode is dynamic, the dispatcher could prefer Gidney Venting for its low qubit cost. But for now, the goal is just to accept any `QuantumAdder` and validate it, not to build a full auto-selection heuristic.
+This also opens the door to smarter defaults in the future. For instance, if both inputs are classical-quantum and the execution mode is dynamic, the dispatcher could prefer Gidney Venting for its low qubit cost. The optional `ancillas`, `depth`, and `min_size` hints give the dispatcher enough information to make that choice without hardcoding adder-specific logic. But for now, the goal is just to accept any `QuantumAdder` and validate it, not to build a full auto-selection heuristic.
 
 ### Type pluggability
 
@@ -343,6 +450,8 @@ Neither adder is needed for the initial `QuantumAdder` class. They can be implem
 ### Additions
 
 - `QuantumAdder` class: new public type for wrapping adder functions.
+- `AdderCapabilities` class, including its `CQ`, `QQ`, `STATIC`, `DYNAMIC`, `BOTH`, `CARRY_IN`, and `CARRY_OUT` class attributes: declarative metadata for what an adder supports.
+- `.capabilities` on every wrapped adder, plus `.validate(...)` for checking a call against them.
 - `.ammend()` and `.verify()` methods on every wrapped adder with `ammend` renamed to `amend`.
 - `isinstance(x, QuantumAdder)` for type checking.
 - Downstream functions (`inpl_add`, `multiply`, etc.) gain an optional `adder` parameter.
@@ -360,4 +469,4 @@ Neither adder is needed for the initial `QuantumAdder` class. They can be implem
 
 - **Users calling adders directly**: no change needed. `cuccaro_adder(a, b)` still works.
 - **Users passing adders to `inpl_add`**: replace `adder="thapliyal"` with `adder=thapliyal_adder` (the wrapped instance).
-- **Users with custom adders**: wrap with `@QuantumAdder` or `QuantumAdder(my_func)` to get `.ammend()`, `.verify()`, and type compatibility.
+- **Users with custom adders**: wrap with `@QuantumAdder` or `QuantumAdder(my_func)` to get `.ammend()`, `.verify()`, and type compatibility. Pass an `AdderCapabilities` object to declare native support; the conservative defaults apply if omitted.
