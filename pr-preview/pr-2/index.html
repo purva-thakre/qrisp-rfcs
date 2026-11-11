@@ -326,24 +326,85 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 <div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">functools</span>
 
 <span class="k">class</span><span class="w"> </span><span class="nc">QuantumAdder</span><span class="p">:</span>
-    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">func</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">func</span><span class="p">,</span> <span class="n">capabilities</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_raw</span> <span class="o">=</span> <span class="n">func</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">capabilities</span> <span class="o">=</span> <span class="n">capabilities</span> <span class="ow">or</span> <span class="n">AdderCapabilities</span><span class="p">()</span>
         <span class="n">functools</span><span class="o">.</span><span class="n">update_wrapper</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">func</span><span class="p">)</span>
 
     <span class="k">def</span><span class="w"> </span><span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_raw</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
 
+    <span class="k">def</span><span class="w"> </span><span class="nf">validate</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">c_in</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">c_out</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">ctrl</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Raise if this adder cannot handle the given call.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">capabilities</span><span class="o">.</span><span class="n">supports</span><span class="p">(</span>
+            <span class="n">inputs</span><span class="o">=</span><span class="n">_input_combination</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">),</span>
+            <span class="n">mode</span><span class="o">=</span><span class="n">mode</span><span class="p">,</span>
+            <span class="n">carries</span><span class="o">=</span><span class="n">_requested_carries</span><span class="p">(</span><span class="n">c_in</span><span class="p">,</span> <span class="n">c_out</span><span class="p">),</span>
+            <span class="n">control</span><span class="o">=</span><span class="n">ctrl</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="n">classical_type</span><span class="o">=</span><span class="n">_classical_type</span><span class="p">(</span><span class="n">a</span><span class="p">),</span>
+        <span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="o">...</span><span class="p">)</span>
+        <span class="k">return</span> <span class="kc">True</span>
+
     <span class="k">def</span><span class="w"> </span><span class="nf">ammend</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ammend_cl_int</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return an ammended version via ammend_inpl_adder.&quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="n">ammend_inpl_adder</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_raw</span><span class="p">,</span> <span class="n">ammend_cl_int</span><span class="o">=</span><span class="n">ammend_cl_int</span><span class="p">)</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return an amended QuantumAdder via ammend_inpl_adder.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">QuantumAdder</span><span class="p">(</span>
+            <span class="n">ammend_inpl_adder</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_raw</span><span class="p">,</span> <span class="n">ammend_cl_int</span><span class="o">=</span><span class="n">ammend_cl_int</span><span class="p">),</span>
+            <span class="n">capabilities</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">capabilities</span><span class="o">.</span><span class="n">extended</span><span class="p">(</span>
+                <span class="n">carries</span><span class="o">=</span><span class="n">AdderCapabilities</span><span class="o">.</span><span class="n">CARRY_IN</span> <span class="o">|</span> <span class="n">AdderCapabilities</span><span class="o">.</span><span class="n">CARRY_OUT</span><span class="p">,</span>
+                <span class="n">control</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+            <span class="p">),</span>
+        <span class="p">)</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">verify</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Verify correctness via inpl_adder_test (ammends internally first).&quot;&quot;&quot;</span>
-        <span class="n">ammended</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ammend</span><span class="p">()</span>
-        <span class="k">return</span> <span class="n">inpl_adder_test</span><span class="p">(</span><span class="n">ammended</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">inpl_adder_test</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ammend</span><span class="p">())</span>
+</code></pre></div>
+<p>Three private helpers—<code>_input_combination</code>, <code>_requested_carries</code>, and <code>_classical_type</code>—classify the arguments before the capability check. They are implementation details to be written alongside the class.</p>
+<p>The adder's capabilities are described by a small frozen dataclass. The shorthand constants are class attributes so they stay namespaced under <code>AdderCapabilities</code>:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span><span class="p">,</span> <span class="n">replace</span>
+
+<span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">AdderCapabilities</span><span class="p">:</span>
+    <span class="n">CQ</span> <span class="o">=</span> <span class="nb">frozenset</span><span class="p">({</span><span class="s2">&quot;cq&quot;</span><span class="p">})</span>
+    <span class="n">QQ</span> <span class="o">=</span> <span class="nb">frozenset</span><span class="p">({</span><span class="s2">&quot;qq&quot;</span><span class="p">})</span>
+    <span class="n">STATIC</span> <span class="o">=</span> <span class="nb">frozenset</span><span class="p">({</span><span class="s2">&quot;static&quot;</span><span class="p">})</span>
+    <span class="n">DYNAMIC</span> <span class="o">=</span> <span class="nb">frozenset</span><span class="p">({</span><span class="s2">&quot;dynamic&quot;</span><span class="p">})</span>
+    <span class="n">BOTH</span> <span class="o">=</span> <span class="n">STATIC</span> <span class="o">|</span> <span class="n">DYNAMIC</span>
+    <span class="n">CARRY_IN</span> <span class="o">=</span> <span class="nb">frozenset</span><span class="p">({</span><span class="s2">&quot;in&quot;</span><span class="p">})</span>
+    <span class="n">CARRY_OUT</span> <span class="o">=</span> <span class="nb">frozenset</span><span class="p">({</span><span class="s2">&quot;out&quot;</span><span class="p">})</span>
+
+    <span class="n">inputs</span><span class="p">:</span> <span class="nb">frozenset</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="n">CQ</span>                 <span class="c1"># subset of {&quot;cq&quot;, &quot;qq&quot;}</span>
+    <span class="n">modes</span><span class="p">:</span> <span class="nb">frozenset</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="n">STATIC</span>              <span class="c1"># subset of {&quot;static&quot;, &quot;dynamic&quot;}</span>
+    <span class="n">carries</span><span class="p">:</span> <span class="nb">frozenset</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="nb">frozenset</span><span class="p">()</span>       <span class="c1"># subset of {&quot;in&quot;, &quot;out&quot;}</span>
+    <span class="n">control</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">classical_types</span><span class="p">:</span> <span class="nb">frozenset</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="nb">frozenset</span><span class="p">({</span><span class="s2">&quot;int&quot;</span><span class="p">,</span> <span class="s2">&quot;BigInteger&quot;</span><span class="p">,</span> <span class="s2">&quot;str&quot;</span><span class="p">})</span>
+    <span class="c1"># planning hints, not correctness guarantees</span>
+    <span class="n">ancillas</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">depth</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">min_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">assert</span> <span class="s2">&quot;cq&quot;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">inputs</span><span class="p">,</span> <span class="s2">&quot;every in-place adder supports cq&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">extended</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">overrides</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return a copy with some capabilities widened.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">replace</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">overrides</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">supports</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">inputs</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">carries</span><span class="o">=</span><span class="p">(),</span> <span class="n">control</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                 <span class="n">classical_type</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">inputs</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">inputs</span> <span class="o">&lt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">inputs</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">False</span>
+        <span class="k">if</span> <span class="n">mode</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">mode</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">modes</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">False</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">frozenset</span><span class="p">(</span><span class="n">carries</span><span class="p">)</span> <span class="o">&lt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">carries</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">False</span>
+        <span class="k">if</span> <span class="n">classical_type</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">classical_type</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">classical_types</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">False</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">control</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">control</span>
 </code></pre></div>
 <p>When you call a <code>QuantumAdder</code> instance, it just calls the underlying function. Nothing about the adder's behavior changes at the call site. Wrapping an adder in QuantumAdder does not change how it behaves when called. For example, existing code that calls <code>cuccaro_adder(a, b)</code> keeps working exactly as before.</p>
-<p>The <code>.ammend()</code> method wraps the raw adder through <code>ammend_inpl_adder</code> so it can handle mixed input types (different-sized registers, classical integers, etc.). The <code>.verify()</code> method ammends the adder first, then runs it through the standard <code>inpl_adder_test</code> correctness suite. This way a user who writes a custom adder doesn't have to know about either of those functions; they just call <code>.verify()</code> and get a pass/fail confirming whther their custom adder indeed works as expected.</p>
+<p>The <code>.ammend()</code> method wraps the raw adder through <code>ammend_inpl_adder</code> so it can handle mixed input types (different-sized registers, classical integers, etc.). It returns a new <code>QuantumAdder</code> whose capabilities are expanded to reflect what the amended wrapper can now handle, so capability checks remain accurate. The <code>.verify()</code> method ammends the adder first, then runs it through the standard <code>inpl_adder_test</code> correctness suite. This way a user who writes a custom adder doesn't have to know about either of those functions; they just call <code>.verify()</code> and get a pass/fail confirming whther their custom adder indeed works as expected.</p>
 <p>Both <code>ammend_inpl_adder</code> and <code>inpl_adder_test</code> are being heavily refactored as part of this work. The current implementations are static-mode only, have reversed argument orders, and contain dead code. The refactored versions will work in both static and dynamic modes, follow the standard input argument order, and align with the <code>QuantumAdder</code> interface. The class definition above shows the intended API; the internals of <code>.ammend()</code> and <code>.verify()</code> will change significantly.</p>
 <h3 id="using-as-a-decorator">Using as a decorator</h3>
 <p>For users writing a new custom adder from scratch, <code>QuantumAdder</code> works as a decorator:</p>
@@ -351,7 +412,17 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 <span class="k">def</span><span class="w"> </span><span class="nf">my_custom_adder</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">c_in</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">c_out</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">ctrl</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
     <span class="o">...</span>
 </code></pre></div>
-<p>This is the intended way to define a new adder going forward. The decorator wraps the function at definition time, so <code>my_custom_adder</code> is immediately a <code>QuantumAdder</code> instance with <code>.ammend()</code> and <code>.verify()</code> available. You can still call it like a normal function.</p>
+<p>This is the intended way to define a new adder going forward. The decorator wraps the function at definition time, so <code>my_custom_adder</code> is immediately a <code>QuantumAdder</code> instance with <code>.ammend()</code> and <code>.verify()</code> available. You can still call it like a normal function. The bare decorator applies conservative default capabilities; to declare capabilities explicitly, wrap the function post-hoc:</p>
+<div class="highlight"><pre><span></span><code><span class="n">my_custom_adder</span> <span class="o">=</span> <span class="n">QuantumAdder</span><span class="p">(</span>
+    <span class="n">my_custom_adder</span><span class="p">,</span>
+    <span class="n">capabilities</span><span class="o">=</span><span class="n">AdderCapabilities</span><span class="p">(</span>
+        <span class="n">inputs</span><span class="o">=</span><span class="n">AdderCapabilities</span><span class="o">.</span><span class="n">CQ</span> <span class="o">|</span> <span class="n">AdderCapabilities</span><span class="o">.</span><span class="n">QQ</span><span class="p">,</span>
+        <span class="n">modes</span><span class="o">=</span><span class="n">AdderCapabilities</span><span class="o">.</span><span class="n">BOTH</span><span class="p">,</span>
+        <span class="n">carries</span><span class="o">=</span><span class="n">AdderCapabilities</span><span class="o">.</span><span class="n">CARRY_IN</span> <span class="o">|</span> <span class="n">AdderCapabilities</span><span class="o">.</span><span class="n">CARRY_OUT</span><span class="p">,</span>
+        <span class="n">control</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="p">),</span>
+<span class="p">)</span>
+</code></pre></div>
 <p>If the adder also needs <code>@custom_control</code> or another decorator, the stacking order matters: <code>@QuantumAdder</code> should be the outermost decorator so it wraps the fully decorated function. Alternatively, users can apply it post-hoc the same way the built-in adders do:</p>
 <div class="highlight"><pre><span></span><code><span class="nd">@custom_control</span>
 <span class="k">def</span><span class="w"> </span><span class="nf">my_custom_adder</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">c_in</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">c_out</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">ctrl</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
@@ -361,29 +432,53 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 </code></pre></div>
 <h3 id="wrapping-existing-adders">Wrapping existing adders</h3>
 <p>The built-in adders already have their own decorators (several use <code>@custom_control</code>). Stacking <code>@QuantumAdder</code> on top of <code>@custom_control</code> could cause decorator interaction issues, so wrapping is applied post-hoc at the bottom of each adder's module instead:</p>
-<div class="highlight"><pre><span></span><code><span class="n">cuccaro_adder</span> <span class="o">=</span> <span class="n">QuantumAdder</span><span class="p">(</span><span class="n">cuccaro_adder</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><span class="n">CUCCARO_CAPABILITIES</span> <span class="o">=</span> <span class="n">AdderCapabilities</span><span class="p">(</span>
+    <span class="n">inputs</span><span class="o">=</span><span class="n">AdderCapabilities</span><span class="o">.</span><span class="n">CQ</span> <span class="o">|</span> <span class="n">AdderCapabilities</span><span class="o">.</span><span class="n">QQ</span><span class="p">,</span>
+    <span class="n">modes</span><span class="o">=</span><span class="n">AdderCapabilities</span><span class="o">.</span><span class="n">BOTH</span><span class="p">,</span>
+    <span class="n">carries</span><span class="o">=</span><span class="n">AdderCapabilities</span><span class="o">.</span><span class="n">CARRY_IN</span> <span class="o">|</span> <span class="n">AdderCapabilities</span><span class="o">.</span><span class="n">CARRY_OUT</span><span class="p">,</span>
+    <span class="n">control</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="n">ancillas</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+    <span class="n">depth</span><span class="o">=</span><span class="s2">&quot;O(n)&quot;</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="n">cuccaro_adder</span> <span class="o">=</span> <span class="n">QuantumAdder</span><span class="p">(</span><span class="n">cuccaro_adder</span><span class="p">,</span> <span class="n">capabilities</span><span class="o">=</span><span class="n">CUCCARO_CAPABILITIES</span><span class="p">)</span>
 </code></pre></div>
-<p>This reassigns the module-level name to the wrapped version. Since <code>QuantumAdder</code> is callable, reassigning the module-level name means every existing import and call site keeps working without changes. The same pattern is used to wrap all the other built-in adders.</p>
+<p>This reassigns the module-level name to the wrapped version. Since <code>QuantumAdder</code> is callable, reassigning the module-level name means every existing import and call site keeps working without changes. Each built-in adder declares its own capability object at its module level. The same pattern is used to wrap all the other built-in adders.</p>
 <h3 id="classical-quantum-only-adders">Classical-quantum-only adders</h3>
 <p>Most adders accept both quantum-quantum and classical-quantum input combinations. The Gidney Venting adder is the exception: it only works with classical-quantum inputs (the first argument must be an integer or <code>BigInteger</code>, never a quantum register). The <code>QuantumAdder</code> interface needs to handle this gracefully rather than letting the user hit a confusing error deep in the carry-venting logic.</p>
 <p>The solution is to let each adder declare what it supports up front via metadata, so downstream code can check before calling and either pick a different adder or raise a clear error message.</p>
 <h4 id="capability-metadata">Capability metadata</h4>
-<p>Each <code>QuantumAdder</code> instance carries metadata that describes what it can do:</p>
+<p>Each <code>QuantumAdder</code> instance carries an <code>AdderCapabilities</code> object (defined alongside the class above) that describes what the adder natively supports. Rather than a growing set of independent booleans, the capability object groups related options into sets. Cuccaro, for example, is fully capable: its <code>CUCCARO_CAPABILITIES</code> (shown above) declares <code>inputs=AdderCapabilities.CQ | AdderCapabilities.QQ</code>, <code>modes=AdderCapabilities.BOTH</code>, <code>carries=AdderCapabilities.CARRY_IN | AdderCapabilities.CARRY_OUT</code>, and <code>control=True</code>.</p>
+<p>Gidney Venting, by contrast, is classical-quantum only and dynamic only:</p>
 <div class="highlight"><pre><span></span><code><span class="n">gidney_cq_venting_adder</span> <span class="o">=</span> <span class="n">QuantumAdder</span><span class="p">(</span>
     <span class="n">gidney_cq_venting_adder</span><span class="p">,</span>
-    <span class="n">supports_qq</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
-    <span class="n">modes</span><span class="o">=</span><span class="s2">&quot;dynamic&quot;</span>
+    <span class="n">capabilities</span><span class="o">=</span><span class="n">AdderCapabilities</span><span class="p">(</span>
+        <span class="n">inputs</span><span class="o">=</span><span class="n">AdderCapabilities</span><span class="o">.</span><span class="n">CQ</span><span class="p">,</span>
+        <span class="n">modes</span><span class="o">=</span><span class="n">AdderCapabilities</span><span class="o">.</span><span class="n">DYNAMIC</span><span class="p">,</span>
+        <span class="n">carries</span><span class="o">=</span><span class="n">AdderCapabilities</span><span class="o">.</span><span class="n">CARRY_IN</span> <span class="o">|</span> <span class="n">AdderCapabilities</span><span class="o">.</span><span class="n">CARRY_OUT</span><span class="p">,</span>
+        <span class="n">control</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="n">classical_types</span><span class="o">=</span><span class="nb">frozenset</span><span class="p">({</span><span class="s2">&quot;int&quot;</span><span class="p">,</span> <span class="s2">&quot;BigInteger&quot;</span><span class="p">}),</span>
+        <span class="n">ancillas</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span>
+        <span class="n">depth</span><span class="o">=</span><span class="s2">&quot;O(n)&quot;</span><span class="p">,</span>
+        <span class="n">min_size</span><span class="o">=</span><span class="mi">6</span><span class="p">,</span>
+    <span class="p">),</span>
 <span class="p">)</span>
 </code></pre></div>
+<p>The fields mean:</p>
 <ul>
-<li><code>supports_qq</code>: whether the adder accepts quantum-quantum input combinations. True for most adders, False for Gidney Venting.</li>
-<li><code>modes</code>: which execution modes the adder works in: <code>"static"</code>, <code>"dynamic"</code>, or <code>"both"</code>.</li>
+<li><code>inputs</code>: which input combinations the adder accepts. Every in-place adder supports <code>"cq"</code> (classical-quantum), so it is always present; <code>"qq"</code> (quantum-quantum) is added only when supported. There is no separate <code>supports_cq</code> flag because it is an invariant.</li>
+<li><code>modes</code>: which execution modes the adder works in, as a subset of <code>{"static", "dynamic"}</code>. <code>AdderCapabilities.BOTH</code> means the adder is mode agnostic.</li>
+<li><code>carries</code>: which carry directions the adder natively supports, as a subset of <code>{"in", "out"}</code>. This distinguishes adders that support only carry-out (for example Remaud) from those that support both.</li>
+<li><code>control</code>: whether the adder natively supports a control qubit. Control support is already live for the reference adders (Cuccaro and Gidney); other adders may gain it as they are refactored.</li>
+<li><code>classical_types</code>: which classical types are accepted for the first operand. Both <code>supports()</code> and <code>validate()</code> check this when a classical first operand is passed.</li>
+<li><code>ancillas</code>, <code>depth</code>, <code>min_size</code>: optional planning hints used by adder selection. These are for display and coarse selection only, not numerical cost comparison; <code>ancillas</code> deliberately accepts either a concrete count (<code>1</code>) or a complexity expression (<code>"O(n)"</code>). <code>min_size</code> is consumed by the <code>inpl_add</code> dispatcher, not by users; an adder may still implement its own fallback internally, as Gidney Venting does for registers smaller than 6 qubits.</li>
 </ul>
-<p>For the built-in adders, the metadata is known upfront and set when the adder is wrapped. For a custom adder, the user declares it as keyword arguments to <code>QuantumAdder</code>. If they don’t, it defaults to the most permissive setting <code>(supports_qq=True, modes="both")</code>.</p>
-<p>This lets any function that dispatches to an adder (like <code>inpl_add</code>) check these fields before calling it. If the user passes an adder that doesn’t support the current execution mode or input combination, the dispatcher raises a clear error instead of letting the adder fail deep in its internals with an unhelpful traceback.</p>
+<p>The metadata describes native support. <code>.ammend()</code> returns a new <code>QuantumAdder</code> with expanded capabilities for anything the amendment layer synthesizes (for example, carry-in/carry-out emulation), so later capability checks reflect the amended behavior.</p>
+<p>For the built-in adders, the metadata is known upfront and set when the adder is wrapped. For a custom adder, capabilities are passed to <code>QuantumAdder</code>; if omitted, the conservative defaults apply (<code>inputs=AdderCapabilities.CQ</code>, <code>modes=AdderCapabilities.STATIC</code>, no carries, no control) rather than assuming the adder is fully capable. <code>.verify()</code> can then confirm the behavior before the user relies on it.</p>
+<p>Any function that dispatches to an adder (like <code>inpl_add</code>) calls <code>QuantumAdder.validate(...)</code> before invoking it. If the adder doesn't support the current execution mode, input combination, classical type, or requested control/carry behavior, validation raises a clear error instead of letting the adder fail deep in its internals with an unhelpful traceback. Direct callers can use the same <code>validate(...)</code> method.</p>
 <h3 id="adder-selection">Adder selection</h3>
-<p>Today, <code>inpl_add</code> is hardcoded to call <code>thapliyal_procedure</code>. With <code>QuantumAdder</code> and capability metadata, it can accept any adder and validate it against the current context. If no adder is passed, it picks a sensible default. If the passed adder doesn't support the current execution mode or the input combination (for example, passing Gidney Venting for a quantum-quantum addition), it raises an error that explains what went wrong and which adders would work instead.</p>
-<p>This also opens the door to smarter defaults in the future. For instance, if both inputs are classical-quantum and the execution mode is dynamic, the dispatcher could prefer Gidney Venting for its low qubit cost. But for now, the goal is just to accept any <code>QuantumAdder</code> and validate it, not to build a full auto-selection heuristic.</p>
+<p>Today, <code>inpl_add</code> is hardcoded to call <code>thapliyal_procedure</code>. With <code>QuantumAdder</code> and capability metadata, it can accept any adder and validate it against the current context. If no adder is passed, it picks a sensible default. If the passed adder doesn't support the current execution mode or the input combination (for example, passing Gidney Venting for a quantum-quantum addition), <code>validate(...)</code> raises an error that explains what went wrong and which adders would work instead.</p>
+<p>This also opens the door to smarter defaults in the future. For instance, if both inputs are classical-quantum and the execution mode is dynamic, the dispatcher could prefer Gidney Venting for its low qubit cost. The optional <code>ancillas</code>, <code>depth</code>, and <code>min_size</code> hints give the dispatcher enough information to make that choice without hardcoding adder-specific logic. But for now, the goal is just to accept any <code>QuantumAdder</code> and validate it, not to build a full auto-selection heuristic.</p>
 <h3 id="type-pluggability">Type pluggability</h3>
 <p><code>inpl_add</code> becomes the single entry point for in-place addition, with an optional <code>adder</code> parameter typed as <code>QuantumAdder</code>. Instead of being hardcoded to one adder, it gives the user access to all of them:</p>
 <div class="highlight"><pre><span></span><code><span class="n">result</span> <span class="o">=</span> <span class="n">inpl_add</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">adder</span><span class="o">=</span><span class="n">gidney_adder</span><span class="p">)</span>
@@ -435,6 +530,8 @@ slicing (see Raphael's typing proposal from Community Day). When that work lands
 <h3 id="additions">Additions</h3>
 <ul>
 <li><code>QuantumAdder</code> class: new public type for wrapping adder functions.</li>
+<li><code>AdderCapabilities</code> class, including its <code>CQ</code>, <code>QQ</code>, <code>STATIC</code>, <code>DYNAMIC</code>, <code>BOTH</code>, <code>CARRY_IN</code>, and <code>CARRY_OUT</code> class attributes: declarative metadata for what an adder supports.</li>
+<li><code>.capabilities</code> on every wrapped adder, plus <code>.validate(...)</code> for checking a call against them.</li>
 <li><code>.ammend()</code> and <code>.verify()</code> methods on every wrapped adder with <code>ammend</code> renamed to <code>amend</code>.</li>
 <li><code>isinstance(x, QuantumAdder)</code> for type checking.</li>
 <li>Downstream functions (<code>inpl_add</code>, <code>multiply</code>, etc.) gain an optional <code>adder</code> parameter.</li>
@@ -452,5 +549,5 @@ slicing (see Raphael's typing proposal from Community Day). When that work lands
 <ul>
 <li><strong>Users calling adders directly</strong>: no change needed. <code>cuccaro_adder(a, b)</code> still works.</li>
 <li><strong>Users passing adders to <code>inpl_add</code></strong>: replace <code>adder="thapliyal"</code> with <code>adder=thapliyal_adder</code> (the wrapped instance).</li>
-<li><strong>Users with custom adders</strong>: wrap with <code>@QuantumAdder</code> or <code>QuantumAdder(my_func)</code> to get <code>.ammend()</code>, <code>.verify()</code>, and type compatibility.</li>
+<li><strong>Users with custom adders</strong>: wrap with <code>@QuantumAdder</code> or <code>QuantumAdder(my_func)</code> to get <code>.ammend()</code>, <code>.verify()</code>, and type compatibility. Pass an <code>AdderCapabilities</code> object to declare native support; the conservative defaults apply if omitted.</li>
 </ul>
