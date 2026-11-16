@@ -141,7 +141,7 @@ Has `@custom_control` and full carry support.
 
 ### Adder Tooling
 
-The low-level helpers that were duplicated across adder files have been moved into a shared `adder_utilities.py` module. This includes shared input validation (`_validate_adder_inputs`), type rejection for non-numeric quantum types (`_reject_unsupported_quantum_types`), optional qubit unwrapping (`_normalize_optional_input_arg`), binary string parsing, list-to-DynamicQubitArray conversion, bit extraction, and shared type aliases (`QuantumRegister`, `OptionalQubit`). This was a necessary first step. But the higher-level tooling (amending, testing, dispatching) is still scattered, and none of the adders have a shared type.
+The low-level helpers that were duplicated across adder files have been moved into a shared `adder_utilities.py` module. This includes type rejection for non-numeric quantum types (`_reject_unsupported_quantum_types`), optional qubit unwrapping (`_normalize_optional_input_arg`), binary string parsing, bit extraction, and shared type aliases (`QuantumRegister`, `OptionalQubit`). Input validation itself moves to `QuantumAdder.__call__` (see [Input validation](#input-validation)), so individual adders no longer call a separate validation function. This was a necessary first step. But the higher-level tooling (amending, testing, dispatching) is still scattered, and none of the adders have a shared type.
 
 - `ammend_inpl_adder(raw_inpl_adder, ammend_cl_int=True)` in `adder_tools.py` takes a raw adder function and wraps it so it can handle mixed input types: padding shorter registers, truncating longer ones, and encoding classical integers into temporary quantum variables. This only works in static mode; in dynamic mode the wrapper does nothing and passes the arguments through unchanged. The function also has a reversed argument order compared to the raw adders, dead code that is never reached, and no way to discover it exists unless you read the source.
 
@@ -169,13 +169,17 @@ Ideally, an in-place adder in Qrisp
     * `QubitArray` is the umbrella register type shared by `StaticQubitArray` (static mode) and `DynamicQubitArray` (dynamic mode). It exposes `.size`, indexing, slicing, and `+` for concatenation. Python's `len()` and direct iteration are excluded because a dynamic register's size is a JAX tracer rather than a Python `int`; use `.size` for the size, and Qrisp's `jlen`/`jrange` helpers for mode-agnostic size and iteration (`jlen` returns `.size` for non-list registers).
     * The adder computes $b \leftarrow (a + b + c_{in}) \mod 2^{\text{size}(b)}$ and $c_{out} \leftarrow c_{out} \oplus \text{carry}$, so that `c_out` holds the bit that would otherwise be discarded on wraparound.
     * Adders that do not natively support carry operations declare this in their metadata; for these, `.amend()` emulates the carry logic. In this emulation, `c_out` is treated as an extra most significant bit of `b`, and `c_in` is incorporated by means of a controlled increment.
-* `QuantumAdder.__call__` is where the input types are made strict. It accepts the user-facing types below, validates them, and normalizes them to the general signature before invoking the raw adder.
-    * `a` may be any numeric quantum type or register: `QuantumVariable`, `QuantumFloat`, `QuantumInt` (see the next RFC where `QuantumFloat` is going to be split into `QuantumInt` and `QuantumFloat`), `QuantumModulus`, `QuantumBool`, or `QubitArray`.
-    * `b` may be any numeric quantum type or register: `QuantumVariable`, `QuantumFloat`, `QuantumInt`, `QuantumModulus`, `QuantumBool`, or `QubitArray`.
-    * The `c_in` parameter may be a `Qubit`, a `QuantumVariable` of size 1 (including `QuantumBool`), a `QubitArray` of size 1, or a classical value of 0 or 1.
-    * The `c_out` parameter may be a `Qubit`, a `QuantumVariable` of size 1 (including `QuantumBool`), or a `QubitArray` of size 1.
-    * The `ctrl` parameter may be a `Qubit`, a `QuantumVariable` of size 1 (including `QuantumBool`), or a `QubitArray` of size 1.
-    * Non-numeric quantum types `QuantumChar` and `QuantumString` should be rejected as either `a` or `b`.
+* `QuantumAdder.__call__` is where the input types are made strict. It accepts the user-facing types in the table below, validates them, and normalizes them to the general signature before invoking the raw adder. This way input handling is done at the level of the `QuantumAdder` class without worrying about messy checks in each adder. 
+
+    A numeric quantum type is a `QuantumVariable` or one of its numeric subclasses, meaning it encodes an integer or float value: `QuantumFloat`, `QuantumInt` (see the next RFC where `QuantumFloat` is going to be split into `QuantumInt` and `QuantumFloat`), `QuantumModulus`, or `QuantumBool`. `QuantumChar` and `QuantumString` are not numeric and are rejected.
+
+    | Parameter | Accepted types |
+    |-----------|----------------|
+    | `a` | A numeric quantum type, a `QubitArray`, or a classical number (`int`, `np.integer`, `str` binary string, `BigInteger`, or a traced JAX scalar). |
+    | `b` | A numeric quantum type or a `QubitArray`. |
+    | `c_in` | `Qubit`, a size-1 `QuantumVariable` (including `QuantumBool`), a size-1 `QubitArray`, or a classical value of 0 or 1. |
+    | `c_out` | `Qubit`, a size-1 `QuantumVariable` (including `QuantumBool`), or a size-1 `QubitArray`. |
+    | `ctrl` | `Qubit`, a size-1 `QuantumVariable` (including `QuantumBool`), or a size-1 `QubitArray`. |
 
     > [!NOTE]
     > `QuantumBool` is a special case as an input because its size is fixed at 1 qubit and cannot be set by the user, so it can only ever represent 0 or 1.
@@ -216,22 +220,6 @@ class QuantumAdder:
         )
         return self._raw(a, b, c_in, c_out, ctrl)
 
-    def validate(self, a, b, c_in=None, c_out=None, ctrl=None, mode=None):
-        """Check that this adder supports the given arguments.
-
-        Returns True if it does; raises ValueError naming the unsupported
-        capability (inputs, mode, carries, control, or classical type) otherwise.
-        """
-        if not self.capabilities.supports(
-            inputs=_input_combination(a, b),
-            mode=mode,
-            carries=_requested_carries(c_in, c_out),
-            control=ctrl is not None,
-            classical_type=_classical_type(a),
-        ):
-            raise ValueError(...)
-        return True
-
     def ammend(self, ammend_cl_int=True):
         """Return an amended QuantumAdder via ammend_inpl_adder."""
         return QuantumAdder(
@@ -247,13 +235,13 @@ class QuantumAdder:
         return inpl_adder_test(self.ammend())
 ```
 
-Before the capability check runs, three private helpers classify the arguments into terms the capability object understands. `_input_combination` figures out whether the call is classical-quantum or quantum-quantum. `_requested_carries` checks whether carry-in or carry-out qubits were passed. `_classical_type` identifies the type of a classical first operand (if there is one). All three are implementation details that will be written alongside the class.
+When a dispatcher performs a capability check, three private helpers classify the arguments into terms the capability object understands. `_input_combination` figures out whether the call is classical-quantum or quantum-quantum. `_requested_carries` checks whether carry-in or carry-out qubits were passed. `_classical_type` identifies the type of a classical first operand (if there is one). All three are implementation details that will be written alongside the class.
 
 Separately, `_validate_and_normalize_inputs` is the strict input gate used by `__call__`: it checks the accepted quantum and classical types, rejects `QuantumChar` and `QuantumString`, normalizes quantum operands to their `QubitArray` registers, unwraps size-1 quantum variables and size-1 `QubitArray` objects passed as `c_in`, `c_out`, or `ctrl` to `Qubit`, and converts a classical `c_in` of 0 or 1 to a qubit. Its return values match the general adder signature.
 
 Each adder's capabilities live in a small, immutable `AdderCapabilities` dataclass. The shorthand constants sit on the class itself (`AdderCapabilities.CQ`, and so on) so they don't clutter the module namespace.
 
-`AdderCapabilities` is how an adder says what it can and can't do. Can the first operand be quantum, or only classical? Which classical types? Does the adder work in static mode, dynamic mode, or both? Does it support carry-in and carry-out? A control qubit? How many ancillas does it need, roughly? How deep is the circuit? The object answers all of these, but it never does any addition itself. It is just a description that lets the dispatcher and `validate()` decide whether a call makes sense before it happens, and raise a clear error when it doesn't.
+`AdderCapabilities` is how an adder says what it can and can't do. Can the first operand be quantum, or only classical? Which classical types? Does the adder work in static mode, dynamic mode, or both? Does it support carry-in and carry-out? A control qubit? How many ancillas does it need, roughly? How deep is the circuit? The object answers all of these, but it never does any addition itself. It is just a description that lets the dispatcher decide whether a call makes sense before it happens, and raise a clear error when it doesn't.
 
 ```python
 from dataclasses import dataclass, replace
@@ -394,18 +382,18 @@ The fields mean:
 - `modes`: which execution modes the adder works in, as a subset of `{"static", "dynamic"}`. `AdderCapabilities.BOTH` means the adder is mode agnostic.
 - `carries`: which carry directions the adder natively supports, as a subset of `{"in", "out"}`. This distinguishes adders that support only carry-out (for example Remaud) from those that support both.
 - `control`: whether the adder natively supports a control qubit. Control support is already live for the reference adders (Cuccaro and Gidney); other adders may gain it as they are refactored.
-- `classical_types`: which classical types are accepted for the first operand. Both `supports()` and `validate()` check this when a classical first operand is passed.
+- `classical_types`: which classical types are accepted for the first operand. `supports()` checks this when a classical first operand is passed.
 - `ancillas`, `depth`, `min_size`: optional planning hints used by adder selection. These are for display and coarse selection only, not numerical cost comparison; `ancillas` deliberately accepts either a concrete count (`1`) or a complexity expression (`"O(n)"`). `min_size` is consumed by the `inpl_add` dispatcher, not by users; an adder may still implement its own fallback internally, as Gidney Venting does for registers smaller than 6 qubits.
 
 The metadata describes native support. `.ammend()` returns a new `QuantumAdder` with expanded capabilities for anything the amendment layer synthesizes (for example, carry-in/carry-out emulation), so later capability checks reflect the amended behavior.
 
 For the built-in adders, the metadata is known upfront and set when the adder is wrapped. For a custom adder, capabilities are passed to `QuantumAdder`; if omitted, the conservative defaults apply (`inputs=AdderCapabilities.CQ`, `modes=AdderCapabilities.STATIC`, no carries, no control) rather than assuming the adder is fully capable. `.verify()` can then confirm the behavior before the user relies on it.
 
-Any function that dispatches to an adder (like `inpl_add`) calls `QuantumAdder.validate(...)` before invoking it. If the adder doesn't support the current execution mode, input combination, classical type, or requested control/carry behavior, validation raises a clear error instead of letting the adder fail deep in its internals with an unhelpful traceback. Direct callers can use the same `validate(...)` method.
+Any function that dispatches to an adder (like `inpl_add`) checks `adder.capabilities.supports(...)` before invoking it. If the adder doesn't support the current execution mode, input combination, classical type, or requested control/carry behavior, the dispatcher raises a clear error instead of letting the adder fail deep in its internals with an unhelpful traceback. Direct callers can use the same `supports(...)` method.
 
 ### Adder selection
 
-Today, `inpl_add` is hardcoded to call `thapliyal_procedure`. With `QuantumAdder` and capability metadata, it can accept any adder and validate it against the current context. If no adder is passed, it picks a sensible default. If the passed adder doesn't support the current execution mode or the input combination (for example, passing Gidney Venting for a quantum-quantum addition), `validate(...)` raises an error that explains what went wrong and which adders would work instead.
+Today, `inpl_add` is hardcoded to call `thapliyal_procedure`. With `QuantumAdder` and capability metadata, it can accept any adder and validate it against the current context. If no adder is passed, it picks a sensible default. If the passed adder doesn't support the current execution mode or the input combination (for example, passing Gidney Venting for a quantum-quantum addition), the dispatcher raises an error that explains what went wrong and which adders would work instead.
 
 This also opens the door to smarter defaults in the future. For instance, if both inputs are classical-quantum and the execution mode is dynamic, the dispatcher could prefer Gidney Venting for its low qubit cost. The optional `ancillas`, `depth`, and `min_size` hints give the dispatcher enough information to make that choice without hardcoding adder-specific logic. But for now, the goal is just to accept any `QuantumAdder` and validate it, not to build a full auto-selection heuristic.
 
@@ -423,9 +411,9 @@ The same `adder` parameter propagates to higher-level operations like `multiply`
 
 ### Input validation
 
-Input validation happens in two layers. The shared `_validate_adder_inputs(a, b)` function in `adder_utilities.py` handles the checks that apply to every adder: is `b` a quantum type? Is `a` a valid classical or quantum type? Are non-numeric types like `QuantumChar` and `QuantumString` rejected?
+Input validation happens in two layers. `QuantumAdder.__call__` is the input validator: it accepts the user-facing types in the table above, rejects invalid inputs (including `QuantumChar` and `QuantumString`), and normalizes everything to the general signature before calling the raw adder. Raw adders therefore assume the general signature and no longer call a separate `_validate_adder_inputs` function.
 
-Everything above that is the responsibility of the quantum type, not the adder. Concerns like exponent alignment, sign handling, precision validation, and modular reduction are handled by each type’s own `__iadd__` before it dispatches to the adder. By the time the adder is called, it only sees integer-valued qubit registers and classical values. The details of what each type needs to do before calling the adder are left to the RFCs that refactor the methods for those types.
+Everything above that is the responsibility of the quantum type, not the adder. Concerns like exponent alignment, sign handling, precision validation, and modular reduction are handled by each type’s own `__iadd__` before it dispatches to the adder. By the time the raw adder is called, `QuantumAdder.__call__` has already normalized the inputs to the general signature. The details of what each type needs to do before calling the adder are left to the RFCs that refactor the methods for those types.
 
 
 ## Unresolved questions
@@ -441,8 +429,7 @@ Everything above that is the responsibility of the quantum type, not the adder. 
 
 The adder input interface is built on the `QubitArray` umbrella type introduced by the preceding QubitArray RFC. `QubitArray` is the common interface shared by the static and dynamic register implementations (`StaticQubitArray` for static mode and `DynamicQubitArray` for dynamic mode), giving them a uniform interface for `.size`, indexing, and slicing. Because that RFC lands first:
 
-- `_validate_adder_inputs` simplifies from an isinstance chain to a check of `a`
-  against `SomeClassicalNumberType | QubitArray` and `b` against `QubitArray`.
+- `QuantumAdder.__call__` checks `a` against `SomeClassicalNumberType | QuantumVariable | QubitArray` and `b` against `QuantumVariable | QubitArray`, then normalizes both quantum operands to `QubitArray`.
 - The raw adder type signature is `(a: SomeClassicalNumberType | QubitArray, b: QubitArray, c_in: Qubit | None = None, c_out: Qubit | None = None, ctrl: Qubit | None = None)`, which
   type checkers can verify statically.
 - `ammend_inpl_adder`'s size-padding logic uses `QubitArray.size` instead of
@@ -467,7 +454,7 @@ Neither adder is needed for the initial `QuantumAdder` class. They can be implem
 
 - `QuantumAdder` class: new public type for wrapping adder functions.
 - `AdderCapabilities` class, including its `CQ`, `QQ`, `STATIC`, `DYNAMIC`, `BOTH`, `CARRY_IN`, and `CARRY_OUT` class attributes: declarative metadata for what an adder supports.
-- `.capabilities` on every wrapped adder, plus `.validate(...)` for checking a call against them.
+- `.capabilities` on every wrapped adder, with `supports(...)` for checking a call against them.
 - `.ammend()` and `.verify()` methods on every wrapped adder with `ammend` renamed to `amend`.
 - `isinstance(x, QuantumAdder)` for type checking.
 - Downstream functions (`inpl_add`, `multiply`, etc.) gain an optional `adder` parameter.
