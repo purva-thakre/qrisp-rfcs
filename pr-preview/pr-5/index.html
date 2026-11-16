@@ -233,14 +233,14 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 <p><strong>Note:</strong> this step changes <code>.reg</code> from a mutation to a reassignment. Code that holds a reference to the old list will not see the update. In practice, the affected algorithms all access <code>.reg</code> through <code>self</code>, so this is not an issue for internal code. External code that does <code>my_list = qv.reg; qv.reg = ...</code> will need to re-read <code>.reg</code>, but the old pattern (<code>my_list = qv.reg; qv.reg.pop(...)</code>) was already fragile in the same way.</p>
 <h3 id="step-3-qubitarray-a-common-base-class-for-registers">Step 3: <code>QubitArray</code>, a common base class for registers</h3>
 <p>This step introduces a <code>QubitArray</code> abstract base class that captures what both register types support: <code>.size</code>, indexing (<code>__getitem__</code>), slicing, and <code>+</code>. Static registers become <code>StaticQubitArray</code> (based on <code>tuple</code>, immutable), and dynamic registers stay as <code>DynamicQubitArray</code>. <code>.reg</code> is then annotated as <code>QubitArray</code>.</p>
-<pre class="mermaid"><code>graph TD
-    QV["QuantumVariable.reg&lt;br/&gt;declared as"]
+<pre class="mermaid">graph TD
+    QV["QuantumVariable.reg"]
     QA["QubitArray"]
-    SQA["StaticQubitArray&lt;br/&gt;(based on tuple)"]
-    DQA["DynamicQubitArray&lt;br/&gt;(wraps a JAX tracer)"]
-    QV --&gt; QA
-    QA --&gt; SQA
-    QA --&gt; DQA</code></pre>
+    SQA["StaticQubitArray (tuple-based)"]
+    DQA["DynamicQubitArray (wraps a JAX tracer)"]
+    QV -->|declared as| QA
+    QA --> SQA
+    QA --> DQA</pre>
 <p>This is the key step. With <code>.reg: QubitArray</code>, a type checker knows exactly which operations are valid in mode-agnostic code. No <code>isinstance</code> guards are needed: if an operation exists on <code>QubitArray</code>, it works in both modes. And <code>qv.reg.pop(0)</code> becomes a type error, which is correct because it does not work in dynamic mode.</p>
 <p><strong>The interface looks like this:</strong></p>
 <div class="highlight"><pre><span></span><code><span class="n">qv</span><span class="o">.</span><span class="n">reg</span><span class="o">.</span><span class="n">size</span>        <span class="c1"># ok in both modes: returns int (or tracer)</span>
