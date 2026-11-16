@@ -94,4 +94,236 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 .highlight .vg { color: #19177C } /* Name.Variable.Global */
 .highlight .vi { color: #19177C } /* Name.Variable.Instance */
 .highlight .vm { color: #19177C } /* Name.Variable.Magic */
-.highlight .il { color: #666 } /* Literal.Number.Integer.Long */</style><script>MathJax={tex:{inlineMath:[['\\(','\\)']],displayMath:[['\\[','\\]']]}};</script><script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+.highlight .il { color: #666 } /* Literal.Number.Integer.Long */</style><script>MathJax={tex:{inlineMath:[['\\(','\\)']],displayMath:[['\\[','\\]']]}};</script><script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script><ul>
+<li>Feature Name: <code>QubitArray</code> Class</li>
+<li>Start Date: 2026-11-11</li>
+<li>RFC PR: </li>
+<li>Qrisp Issue: </li>
+</ul>
+<h2 id="summary">Summary</h2>
+<p>Qrisp's <code>QuantumVariable</code> works in two modes, static (normal Python) and dynamic (Jasp tracing), but its <code>.reg</code> and <code>.qs</code> attributes carry entirely different types depending on which mode is active, and neither attribute has a type annotation today. This means mypy and pyright can't catch bugs, and in-place list operations on <code>.reg</code> (like <code>pop</code> and <code>insert</code>) silently break under Jasp. This RFC proposes four incremental steps to fix the situation: a <code>ModeMixingError</code> for clear diagnostics, slicing-based register manipulation to replace <code>pop</code>/<code>insert</code>, a common <code>QubitArray</code> base class that unifies the register type, and typed stubs on the tracing session so static-only methods raise helpful errors instead of <code>AttributeError</code>.</p>
+<h2 id="motivation">Motivation</h2>
+<p>Right now, if you write a quantum algorithm that manipulates <code>.reg</code> in place (say, a rotate-right in quantum backtracking), it works fine in static mode and silently fails or raises a confusing error in Jasp. That's because <code>.reg</code> is a <code>list[Qubit]</code> in static mode but a <code>DynamicQubitArray</code> in dynamic mode, and <code>DynamicQubitArray</code> doesn't have <code>pop</code>, <code>insert</code>, or <code>append</code>. There's no type annotation on either <code>.reg</code> or <code>.qs</code>, so a type checker can't warn you.</p>
+<p>This hits two groups of people:</p>
+<ol>
+<li>
+<p><strong>Algorithm authors</strong> who write code that needs to work in both modes. They have to discover the incompatibility at runtime, and the error message (<code>'DynamicQubitArray' object has no attribute 'pop'</code>) doesn't explain what went wrong or how to fix it.</p>
+</li>
+<li>
+<p><strong>Anyone using a type checker.</strong> Today, <code>.reg</code> and <code>.qs</code> are effectively <code>Any</code>: mypy won't catch <code>qv.reg.pop(0)</code> in traced code, won't catch typos on session methods, won't catch mode mixing. Making Qrisp type-safe is a stated goal, and these two attributes are the biggest gap.</p>
+</li>
+</ol>
+<p>The timing is right because Jasp adoption is growing, more algorithms are being written to target both modes, and the fixes here are incremental: each step is useful on its own and doesn't require the others.</p>
+<h2 id="background-and-current-architecture">Background and current architecture</h2>
+<h3 id="quantumvariable-and-its-two-modes">QuantumVariable and its two modes</h3>
+<p>A <code>QuantumVariable</code> is a group of qubits that represents one value. Typed subclasses like <code>QuantumFloat</code> add arithmetic. Every <code>QuantumVariable</code> has two key attributes:</p>
+<ul>
+<li><strong><code>.reg</code></strong>: its qubit register</li>
+<li><strong><code>.qs</code></strong>: its <code>QuantumSession</code>, the circuit it lives in</li>
+</ul>
+<p>In <strong>static mode</strong> (normal Python execution), <code>.reg</code> is a <code>list[Qubit]</code> and <code>.qs</code> is a <code>QuantumSession</code>. Every Python call immediately appends a gate to the circuit.</p>
+<p>In <strong>dynamic mode</strong> (Jasp tracing via <code>make_jaspr</code>), <code>.reg</code> is a <code>DynamicQubitArray</code> (a JAX tracer wrapper) and <code>.qs</code> is a <code>TracingQuantumSession</code>. The function runs once with placeholders, and the result is a Jaspr, a compiled representation that can be executed later with real-time feedback.</p>
+<p>The critical thing is: <strong>it's the same class, but the attributes hold different types.</strong> Most library code is written to work in both modes, but the type system can't verify this.</p>
+<p>Today the class-level annotations look like this (from <code>quantum_variable.py</code>):</p>
+<div class="highlight"><pre><span></span><code><span class="n">reg</span><span class="p">:</span> <span class="n">Any</span>  <span class="c1"># pyright: ignore[reportExplicitAny, reportUninitializedInstanceVariable]</span>
+<span class="n">qs</span><span class="p">:</span> <span class="n">QuantumSession</span> <span class="o">|</span> <span class="n">TracingQuantumSession</span>
+</code></pre></div>
+<p>The <code>Any</code> on <code>.reg</code> is an explicit opt-out: it acknowledges the problem without solving it. The union on <code>.qs</code> is more honest but creates its own friction: static-only methods like <code>statevector()</code> aren't available on the union unless you narrow first.</p>
+<p>To be precise: the union <code>list[Qubit] | DynamicQubitArray</code> describes the two possible runtime types of <code>.reg</code>; it is not the current annotation. The annotation is <code>Any</code>, and that is exactly what hides the problem from type checkers.</p>
+<h3 id="how-mode-detection-works-today">How mode detection works today</h3>
+<p>The codebase uses two patterns to figure out which mode it's in:</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># Pattern 1: check the register type</span>
+<span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">reg</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
+    <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">reg</span><span class="p">)</span>       <span class="c1"># static</span>
+<span class="k">else</span><span class="p">:</span>
+    <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">reg</span><span class="o">.</span><span class="n">size</span>       <span class="c1"># dynamic</span>
+
+<span class="c1"># Pattern 2: check the JAX tracing context directly</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">qrisp.jasp</span><span class="w"> </span><span class="kn">import</span> <span class="n">check_for_tracing_mode</span>
+<span class="k">if</span> <span class="n">check_for_tracing_mode</span><span class="p">():</span>
+    <span class="o">...</span>  <span class="c1"># dynamic path</span>
+</code></pre></div>
+<p><code>check_for_tracing_mode()</code> works by inspecting <code>jax._src.core.trace_ctx</code>: it doesn't look at the variable at all, just whether JAX is currently tracing. It's used in 30+ call sites including <code>QuantumVariable.__init__</code>, <code>extend</code>, <code>delete</code>, and many environment files. The <code>isinstance(self.reg, list)</code> check appears in the <code>size</code> property, <code>__iter__</code>, and scattered through quantum type subclasses. <code>.reg</code> is annotated as <code>Any</code> (a deliberate escape hatch), and <code>.qs</code> is annotated as <code>QuantumSession | TracingQuantumSession</code>. The <code>Any</code> on <code>.reg</code> means mypy won't flag <em>anything</em>: <code>qv.reg.pop(0)</code> in traced code, typos, you name it. And while <code>.qs</code> has a union annotation, the union means static-only methods like <code>statevector()</code> show as type errors unless you narrow with <code>isinstance</code>.</p>
+<h3 id="in-place-register-mutations">In-place register mutations</h3>
+<p>Several algorithms modify <code>.reg</code> in place using list operations:</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># quantum backtracking: rotate right (backtracking_tree.py:737)</span>
+<span class="bp">self</span><span class="o">.</span><span class="n">h</span><span class="o">.</span><span class="n">reg</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">h</span><span class="o">.</span><span class="n">reg</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">))</span>
+
+<span class="c1"># quantum backtracking: rotate left (backtracking_tree.py:761)</span>
+<span class="bp">self</span><span class="o">.</span><span class="n">h</span><span class="o">.</span><span class="n">reg</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">h</span><span class="o">.</span><span class="n">reg</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="mi">0</span><span class="p">))</span>
+
+<span class="c1"># modular multiplication: transfer LSB (modular_qft_multiplication.py:51-54)</span>
+<span class="n">lsb</span> <span class="o">=</span> <span class="n">from_qv</span><span class="o">.</span><span class="n">reg</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+<span class="o">...</span>
+<span class="n">to_qv</span><span class="o">.</span><span class="n">reg</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">to_qv</span><span class="p">),</span> <span class="n">lsb</span><span class="p">)</span>
+
+<span class="c1"># ripple division (ripple_division.py:157-160)</span>
+<span class="n">lsb</span> <span class="o">=</span> <span class="n">qv</span><span class="o">.</span><span class="n">reg</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+<span class="n">qv</span><span class="o">.</span><span class="n">reg</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">qv</span><span class="p">),</span> <span class="n">lsb</span><span class="p">)</span>
+
+<span class="c1"># QuantumVariable.reduce (quantum_variable.py:897)</span>
+<span class="bp">self</span><span class="o">.</span><span class="n">reg</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">j</span><span class="p">)</span>
+</code></pre></div>
+<p>None of this works in Jasp, because <code>DynamicQubitArray</code> doesn't expose <code>pop</code>, <code>insert</code>, or <code>append</code>. This means these algorithms can't be traced today: they're locked to static mode.</p>
+<p>Interestingly, the dynamic branch of <code>QuantumVariable.extend</code> already avoids in-place mutation: it uses concatenation (<code>self.reg + insertion_qubits</code>). So the pattern we want already exists in one place; we just need to apply it everywhere.</p>
+<h3 id="the-annotating-the-union-approach-doesnt-work">The annotating-the-union approach doesn't work</h3>
+<p>You might think: "just annotate <code>.reg</code> as <code>list[Qubit] | DynamicQubitArray</code>." But that makes things worse. With a union type, the type checker only allows operations that are valid on <em>both</em> branches. So even <code>qv.reg[0]</code> is fine, but <code>qv.reg.append(x)</code> becomes a type error everywhere, including in code that genuinely only runs in static mode. You'd need an <code>isinstance</code> guard before every list operation, even in code paths that are already guaranteed static.</p>
+<h2 id="proposed-design">Proposed design</h2>
+<p>The proposal has four steps. Each one is independently useful, though step 3 is the core typing change. They can be implemented and merged in any order.</p>
+<h3 id="step-1-modemixingerror-a-clear-error-when-modes-are-crossed">Step 1: <code>ModeMixingError</code>, a clear error when modes are crossed</h3>
+<p><strong>What:</strong> A new exception class that's raised when a static <code>QuantumVariable</code> is used inside a traced function, or a dynamic one is used outside.</p>
+<div class="highlight"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">ModeMixingError</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;A QuantumVariable was used in a mode it does not belong to.&quot;&quot;&quot;</span>
+</code></pre></div>
+<p><strong>Why:</strong> Today, mixing modes either silently does the wrong thing or gives a cryptic error. With this check, the mode becomes a property of the <em>code region</em>, not the object: once you're inside <code>make_jaspr</code>, every <code>QuantumVariable</code> created there is guaranteed dynamic.</p>
+<p><strong>Demo: what happens today vs. what this step changes:</strong></p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">qrisp</span><span class="w"> </span><span class="kn">import</span> <span class="n">QuantumVariable</span><span class="p">,</span> <span class="n">make_jaspr</span>
+
+<span class="n">qv</span> <span class="o">=</span> <span class="n">QuantumVariable</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span>  <span class="c1"># static, created outside make_jaspr</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">():</span>
+    <span class="n">h</span><span class="p">(</span><span class="n">qv</span><span class="p">)</span>  <span class="c1"># qv is static, but we&#39;re in tracing mode</span>
+
+<span class="n">make_jaspr</span><span class="p">(</span><span class="n">main</span><span class="p">)()</span>
+
+<span class="c1"># Today: confusing behavior or an opaque JAX error</span>
+<span class="c1"># After Step 1: ModeMixingError with a message like</span>
+<span class="c1">#   &quot;A static QuantumVariable was used inside a traced function.</span>
+<span class="c1">#    Create the variable inside the function passed to make_jaspr.&quot;</span>
+</code></pre></div>
+<p><strong>Where to put the check</strong> is an open question: at gate application time, at qubit indexing time, or both. Gate application catches more cases; qubit indexing catches them earlier.</p>
+<h3 id="step-2-slicing-instead-of-popinsert">Step 2: Slicing instead of <code>pop</code>/<code>insert</code></h3>
+<p><strong>What:</strong> Replace in-place register mutations (<code>pop</code>, <code>insert</code>, <code>append</code>) with slicing and concatenation (<code>+</code>), which work in both modes.</p>
+<p><strong>Why:</strong> <code>DynamicQubitArray</code> already supports <code>+</code> with lists on both sides and slicing. So the same expression can work whether <code>.reg</code> is a <code>list</code> or a <code>DynamicQubitArray</code>. This unblocks several algorithms for Jasp tracing.</p>
+<p><strong>Demo: before and after for each pattern:</strong></p>
+<div class="highlight"><pre><span></span><code><span class="c1"># ROTATE RIGHT</span>
+<span class="c1"># Before (static only):</span>
+<span class="bp">self</span><span class="o">.</span><span class="n">h</span><span class="o">.</span><span class="n">reg</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">h</span><span class="o">.</span><span class="n">reg</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">))</span>
+<span class="c1"># After (both modes):</span>
+<span class="n">reg</span><span class="p">,</span> <span class="n">n</span> <span class="o">=</span> <span class="n">qv</span><span class="o">.</span><span class="n">reg</span><span class="p">,</span> <span class="n">qv</span><span class="o">.</span><span class="n">size</span>
+<span class="n">qv</span><span class="o">.</span><span class="n">reg</span> <span class="o">=</span> <span class="n">reg</span><span class="p">[</span><span class="n">n</span> <span class="o">-</span> <span class="mi">1</span><span class="p">:]</span> <span class="o">+</span> <span class="n">reg</span><span class="p">[:</span><span class="n">n</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span>
+
+<span class="c1"># ROTATE LEFT</span>
+<span class="c1"># Before (static only):</span>
+<span class="bp">self</span><span class="o">.</span><span class="n">h</span><span class="o">.</span><span class="n">reg</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">h</span><span class="o">.</span><span class="n">reg</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="mi">0</span><span class="p">))</span>
+<span class="c1"># After (both modes):</span>
+<span class="n">reg</span> <span class="o">=</span> <span class="n">qv</span><span class="o">.</span><span class="n">reg</span>
+<span class="n">qv</span><span class="o">.</span><span class="n">reg</span> <span class="o">=</span> <span class="n">reg</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span> <span class="o">+</span> <span class="n">reg</span><span class="p">[:</span><span class="mi">1</span><span class="p">]</span>
+
+<span class="c1"># TRANSFER LSB (modular multiplication)</span>
+<span class="c1"># Before (static only):</span>
+<span class="n">lsb</span> <span class="o">=</span> <span class="n">from_qv</span><span class="o">.</span><span class="n">reg</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+<span class="o">...</span>
+<span class="n">to_qv</span><span class="o">.</span><span class="n">reg</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">to_qv</span><span class="p">),</span> <span class="n">lsb</span><span class="p">)</span>
+<span class="c1"># After (both modes):</span>
+<span class="n">lsb</span> <span class="o">=</span> <span class="n">a</span><span class="o">.</span><span class="n">reg</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+<span class="n">a</span><span class="o">.</span><span class="n">reg</span> <span class="o">=</span> <span class="n">a</span><span class="o">.</span><span class="n">reg</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span>
+<span class="n">b</span><span class="o">.</span><span class="n">reg</span> <span class="o">=</span> <span class="n">b</span><span class="o">.</span><span class="n">reg</span> <span class="o">+</span> <span class="p">[</span><span class="n">lsb</span><span class="p">]</span>
+
+<span class="c1"># EXTRACT CARRY (adders)</span>
+<span class="c1"># Before (static only):</span>
+<span class="n">cout</span> <span class="o">=</span> <span class="n">c</span><span class="o">.</span><span class="n">reg</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+<span class="c1"># After (both modes):</span>
+<span class="n">cout</span> <span class="o">=</span> <span class="n">c</span><span class="o">.</span><span class="n">reg</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+<span class="n">c</span><span class="o">.</span><span class="n">reg</span> <span class="o">=</span> <span class="n">c</span><span class="o">.</span><span class="n">reg</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+</code></pre></div>
+<p>The dynamic branch of <code>QuantumVariable.extend()</code> already uses this style: the static branch can be updated to match.</p>
+<p><strong>Important:</strong> this step does change <code>.reg</code> from a mutation to a reassignment. Code that holds a reference to the old list won't see the update. In practice, the affected algorithms all access <code>.reg</code> through <code>self</code>, so this isn't an issue for internal code. External code that does <code>my_list = qv.reg; qv.reg = ...</code> will need to re-read <code>.reg</code>, but the old pattern (<code>my_list = qv.reg; qv.reg.pop(...)</code>) was already fragile in the same way.</p>
+<h3 id="step-3-qubitarray-a-common-base-class-for-registers">Step 3: <code>QubitArray</code>, a common base class for registers</h3>
+<p><strong>What:</strong> Introduce a <code>QubitArray</code> abstract base class that captures what both register types support: <code>.size</code>, indexing (<code>__getitem__</code>), slicing, and <code>+</code>. Static registers become <code>StaticQubitArray</code> (based on <code>tuple</code>, immutable) and dynamic registers remain <code>DynamicQubitArray</code>. Then <code>.reg</code> is annotated as <code>QubitArray</code>.</p>
+<div class="highlight"><pre><span></span><code>            QuantumVariable.reg
+                declared as
+               ┌───────────┐
+               │ QubitArray │
+               └─────┬─────┘
+              ┌──────┴──────┐
+  ┌───────────┴───┐   ┌────┴──────────────┐
+  │StaticQubitArray│   │DynamicQubitArray   │
+  │(based on tuple)│   │(wraps a JAX tracer)│
+  └───────────────┘   └───────────────────┘
+</code></pre></div>
+<p><strong>Why this is the key step:</strong> With <code>.reg: QubitArray</code>, a type checker knows exactly what operations are valid in mode-agnostic code. No <code>isinstance</code> guards needed: if it's on <code>QubitArray</code>, it works in both modes. And <code>qv.reg.pop(0)</code> becomes a type error, which is exactly right: it doesn't work in dynamic mode.</p>
+<p><strong>What the interface looks like:</strong></p>
+<div class="highlight"><pre><span></span><code><span class="n">qv</span><span class="o">.</span><span class="n">reg</span><span class="o">.</span><span class="n">size</span>        <span class="c1"># ok in both modes: returns int (or tracer)</span>
+<span class="n">qv</span><span class="o">.</span><span class="n">reg</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span>         <span class="c1"># ok in both modes: slicing</span>
+<span class="n">qv</span><span class="o">.</span><span class="n">reg</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>      <span class="c1"># type error: not on QubitArray</span>
+<span class="nb">len</span><span class="p">(</span><span class="n">qv</span><span class="o">.</span><span class="n">reg</span><span class="p">)</span>        <span class="c1"># type error: DynamicQubitArray has a tracer size, not an int</span>
+</code></pre></div>
+<p><strong>Why <code>tuple</code> for static registers:</strong> The whole point of Step 2 is that we stop mutating <code>.reg</code> in place. A tuple enforces this at the type level: <code>StaticQubitArray</code> is immutable, just like <code>DynamicQubitArray</code>. The register is reassigned as a whole, never mutated.</p>
+<p><strong>Why <code>len()</code> and iteration are excluded:</strong> <code>DynamicQubitArray.size</code> is a JAX tracer, not an <code>int</code>. Python's <code>__len__</code> must return an <code>int</code>, so <code>len()</code> can't be part of the common interface. Similarly, iterating over a dynamic register doesn't make sense when the size isn't known statically. Code that needs <code>len(qv.reg)</code> is inherently static-only. The same applies to truthiness: <code>bool(qv.reg)</code> falls back to <code>__len__</code>, so <code>if qv.reg:</code> is also static-only and raises on a dynamic register.</p>
+<h3 id="step-4-typed-stubs-on-tracingquantumsession">Step 4: Typed stubs on <code>TracingQuantumSession</code></h3>
+<p><strong>What:</strong> Methods that only make sense in static mode: <code>statevector()</code>, <code>compile()</code>, <code>depth()</code>, etc. get explicit stub implementations on <code>TracingQuantumSession</code> that raise a clear error.</p>
+<p><strong>Demo: today vs. after:</strong></p>
+<div class="highlight"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">():</span>
+    <span class="n">qv</span> <span class="o">=</span> <span class="n">QuantumFloat</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">qv</span><span class="o">.</span><span class="n">qs</span><span class="o">.</span><span class="n">statevector</span><span class="p">()</span>
+
+<span class="n">make_jaspr</span><span class="p">(</span><span class="n">main</span><span class="p">)()</span>
+
+<span class="c1"># Today:</span>
+<span class="c1">#   AttributeError: &#39;TracingQuantumSession&#39; object has no attribute &#39;statevector&#39;</span>
+<span class="c1"># After Step 4:</span>
+<span class="c1">#   StaticModeOnlyError: &quot;statevector() is only available in static mode.</span>
+<span class="c1">#   This code is running inside make_jaspr().&quot;</span>
+</code></pre></div>
+<p><strong>Why:</strong> This is about developer experience. <code>AttributeError</code> tells you nothing about <em>why</em> the method is missing. A typed stub means (a) mypy knows the method exists and can check the call signature, and (b) the runtime error is informative.</p>
+<p>With this step, <code>.qs</code> can be typed as <code>QuantumSession</code> unconditionally (since <code>TracingQuantumSession</code> inherits from <code>QuantumSession</code> and now has all the same methods), and <code>qv.qs.statevector()</code> type-checks in both modes; it just raises at runtime in the wrong one.</p>
+<h2 id="unresolved-questions">Unresolved questions</h2>
+<ul>
+<li>
+<p><strong>Where should the mode check (Step 1) run?</strong> At gate application, at qubit indexing, or at <code>QuantumVariable</code> construction? Gate application is the most general check point, but qubit indexing catches the problem earlier. Both could coexist.</p>
+</li>
+<li>
+<p><strong>What happens to <code>QuantumVariable.reduce</code> and <code>QuantumVariable.extend</code>?</strong> These methods change the register size and may need special handling under the new typing. <code>extend</code> already has a dynamic branch; <code>reduce</code> may need one.</p>
+</li>
+<li>
+<p><strong>Should <code>.reg</code> stay public?</strong> Individual qubits are also accessible via <code>qv[i]</code> and <code>qv[a:b]</code>. If <code>.reg</code> were made internal (<code>._reg</code>), the public interface would be purely through <code>__getitem__</code> / <code>__setitem__</code>, and the typing story simplifies. But <code>.reg</code> is used in a lot of existing code, both internal and user-facing.</p>
+</li>
+<li>
+<p><strong>Are there other structural blockers for type safety?</strong> The <code>.reg</code> / <code>.qs</code> split is the biggest one, but there may be other attributes or functions with similar dual-type patterns that should be addressed in the same sweep.</p>
+</li>
+<li>
+<p><strong>What about <code>isinstance(qv.reg, list)</code> in user code?</strong> After Step 3, <code>qv.reg</code> is never a <code>list</code>: it's a <code>StaticQubitArray</code> or <code>DynamicQubitArray</code>. Code that does <code>isinstance(qv.reg, list)</code> will get <code>False</code> in both modes. We should provide a migration path: either <code>isinstance(qv.reg, StaticQubitArray)</code> or a helper like <code>qv.is_static</code>.</p>
+</li>
+</ul>
+<h2 id="future-possibilities">Future possibilities</h2>
+<ul>
+<li>
+<p><strong>Full <code>py.typed</code> compliance.</strong> Once <code>.reg</code> and <code>.qs</code> are typed, the next step is annotating the rest of the public API: gate functions, the <code>QuantumCircuit</code> subclasses, the compilation pipeline. This RFC is a prerequisite for that work.</p>
+</li>
+<li>
+<p><strong>Generic <code>QuantumVariable[Mode]</code>.</strong> A more ambitious approach would parameterize <code>QuantumVariable</code> by its mode: <code>QuantumVariable[Static]</code> vs <code>QuantumVariable[Dynamic]</code>. This would let functions declare which mode they support at the type level. It's significantly more complex and probably not worth it unless the mode-agnostic pattern proves too limiting.</p>
+</li>
+<li>
+<p><strong>Protocol-based typing.</strong> Instead of a <code>QubitArray</code> ABC, the register interface could be defined as a <code>typing.Protocol</code>. This avoids inheritance and works with structural subtyping, which is more Pythonic. The downside is that protocols are harder to discover: a base class shows up in <code>help()</code> and IDE class hierarchies.</p>
+</li>
+<li>
+<p><strong>Linting for mode-specific code.</strong> A custom mypy/pyright plugin could detect <code>isinstance(qv.reg, list)</code> patterns and suggest the new idiom, or flag code that uses <code>list</code>-only operations without a mode guard.</p>
+</li>
+<li>
+<p><strong>Qubit-level type safety.</strong> <code>Qubit</code> itself has a similar static/dynamic split. A <code>TypedQubit</code> or parameterized <code>Qubit[Mode]</code> could extend the same pattern down to individual qubits.</p>
+</li>
+</ul>
+<h2 id="public-api-impact">Public API impact</h2>
+<h3 id="additions">Additions</h3>
+<ul>
+<li><code>ModeMixingError</code>: new exception, raised when a <code>QuantumVariable</code> is used in the wrong mode.</li>
+<li><code>QubitArray</code>: new abstract base class for qubit registers, with <code>.size</code>, <code>__getitem__</code>, and <code>__add__</code>.</li>
+<li><code>StaticQubitArray</code>: new class for static-mode registers, based on <code>tuple</code>. Replaces <code>list[Qubit]</code>.</li>
+<li>Error stubs on <code>TracingQuantumSession</code> for static-only methods (<code>statevector</code>, <code>compile</code>, <code>depth</code>, etc.).</li>
+</ul>
+<h3 id="breaking-changes">Breaking changes</h3>
+<ul>
+<li><strong><code>qv.reg</code> is no longer a <code>list</code>.</strong> In static mode it becomes a <code>StaticQubitArray</code> (tuple-like). Code that calls <code>.pop()</code>, <code>.insert()</code>, or <code>.append()</code> on <code>qv.reg</code> will break. <strong>Migration:</strong> use slicing and <code>+</code> as shown in Step 2.</li>
+<li><strong><code>isinstance(qv.reg, list)</code> returns <code>False</code>.</strong> Code that checks the mode this way will need to switch to <code>isinstance(qv.reg, StaticQubitArray)</code> or use <code>check_for_tracing_mode()</code>.</li>
+<li><strong><code>if qv.reg:</code> is static-only.</strong> Truthiness falls back to <code>__len__</code>, so it raises on a dynamic register instead of returning <code>True</code>. Use an explicit check such as <code>qv.reg.size &gt; 0</code>, or branch on <code>check_for_tracing_mode()</code> where the mode matters.</li>
+<li><strong><code>some_list += qv.reg</code> is no longer type-safe.</strong> A tuple-based <code>StaticQubitArray</code> is still iterable at runtime, so this may appear to work in static mode, but iteration is not part of the <code>QubitArray</code> interface and type checkers will flag it. Use <code>some_list.extend(qv.reg)</code> or <code>list(qv.reg)</code> explicitly if that is what you mean.</li>
+</ul>
+<h3 id="backwards-compatibility">Backwards compatibility</h3>
+<p>Steps 1, 2, and 4 are non-breaking. Step 3 (the <code>QubitArray</code> change) is the only one that changes the type of <code>.reg</code>. It can be rolled out with a deprecation period:</p>
+<ol>
+<li>First, add <code>QubitArray</code> and <code>StaticQubitArray</code> but keep <code>.reg</code> as a <code>list</code>.</li>
+<li>Add deprecation warnings on <code>.reg.pop()</code>, <code>.reg.insert()</code>, <code>.reg.append()</code>.</li>
+<li>In the next minor release, switch <code>.reg</code> to <code>StaticQubitArray</code>.</li>
+</ol>
+<p>Alternatively, since in-place mutation of <code>.reg</code> was never part of the documented API, the change could be made directly with a changelog entry.</p>
