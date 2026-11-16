@@ -303,6 +303,7 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 </li>
 <li>
 <p><code>QuantumAdder.__call__</code> is where the input types are made strict. It accepts the user-facing types in the table below, validates them, and normalizes them to the general signature before invoking the raw adder. This way input handling is done at the level of the <code>QuantumAdder</code> class without worrying about messy checks in each adder. </p>
+<p>A numeric quantum type is a <code>QuantumVariable</code> or one of its numeric subclasses, meaning it encodes an integer or float value: <code>QuantumFloat</code>, <code>QuantumInt</code> (see the next RFC where <code>QuantumFloat</code> is going to be split into <code>QuantumInt</code> and <code>QuantumFloat</code>), <code>QuantumModulus</code>, or <code>QuantumBool</code>. <code>QuantumChar</code> and <code>QuantumString</code> are not numeric and are rejected.</p>
 <table>
 <thead>
 <tr>
@@ -313,11 +314,11 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 <tbody>
 <tr>
 <td><code>a</code></td>
-<td>Any numeric quantum type or register: <code>QuantumVariable</code>, <code>QuantumFloat</code>, <code>QuantumInt</code> (see the next RFC where <code>QuantumFloat</code> is going to be split into <code>QuantumInt</code> and <code>QuantumFloat</code>), <code>QuantumModulus</code>, <code>QuantumBool</code>, or <code>QubitArray</code>.</td>
+<td>A numeric quantum type, a <code>QubitArray</code>, or a classical number (<code>int</code>, <code>np.integer</code>, <code>str</code> binary string, <code>BigInteger</code>, or a traced JAX scalar).</td>
 </tr>
 <tr>
 <td><code>b</code></td>
-<td>Any numeric quantum type or register: <code>QuantumVariable</code>, <code>QuantumFloat</code>, <code>QuantumInt</code>, <code>QuantumModulus</code>, <code>QuantumBool</code>, or <code>QubitArray</code>.</td>
+<td>A numeric quantum type or a <code>QubitArray</code>.</td>
 </tr>
 <tr>
 <td><code>c_in</code></td>
@@ -333,7 +334,6 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 </tr>
 </tbody>
 </table>
-<p>Non-numeric quantum types <code>QuantumChar</code> and <code>QuantumString</code> are rejected as either <code>a</code> or <code>b</code>.</p>
 <div class="alert note"><p class="alert-title">Note</p><p><code>QuantumBool</code> is a special case as an input because its size is fixed at 1 qubit and cannot be set by the user, so it can only ever represent 0 or 1.</p></div>
 
 </li>
