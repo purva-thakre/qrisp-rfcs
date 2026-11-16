@@ -286,6 +286,8 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 </li>
 </ul>
 <h2 id="proposed-design">Proposed design</h2>
+<div class="alert important"><p class="alert-title">Important</p><p>This section relies on the QubitArray RFC being implemented first. In short, that proposal gives static and dynamic registers a shared umbrella type (<code>QubitArray</code>) with <code>.size</code>, indexing, slicing, and <code>+</code> for concatenation, so register code works the same way in both modes instead of relying on static-only list operations.</p></div>
+
 <p>Ideally, an in-place adder in Qrisp</p>
 <ul>
 <li>Should be compatible in both static and dynamic modes unless the adder relies on mid-circuit measurements with classically controlled corrections (for example, Gidney's venting adder), which require dynamic mode.<ul>
@@ -524,7 +526,7 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 </li>
 </ol>
 <h3 id="qubitarray-integration">QubitArray integration</h3>
-<p>The adder input interface is built on the <code>QubitArray</code> umbrella type introduced by the preceding QubitArray RFC. <code>QubitArray</code> is the common interface shared by the static and dynamic register implementations — <code>StaticQubitArray</code> for static mode and <code>DynamicQubitArray</code> for dynamic mode — giving them a uniform interface for <code>.size</code>, indexing, and slicing. Because that RFC lands first:</p>
+<p>The adder input interface is built on the <code>QubitArray</code> umbrella type introduced by the preceding QubitArray RFC. <code>QubitArray</code> is the common interface shared by the static and dynamic register implementations (<code>StaticQubitArray</code> for static mode and <code>DynamicQubitArray</code> for dynamic mode), giving them a uniform interface for <code>.size</code>, indexing, and slicing. Because that RFC lands first:</p>
 <ul>
 <li><code>_validate_adder_inputs</code> simplifies from an isinstance chain to a check of <code>a</code>
   against <code>SomeClassicalNumberType | QubitArray</code> and <code>b</code> against <code>QubitArray</code>.</li>
