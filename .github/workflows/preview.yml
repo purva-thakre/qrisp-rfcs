@@ -29,6 +29,9 @@ jobs:
           import markdown
           from pygments.formatters import HtmlFormatter
 
+          def mermaid_format(source, language, css_class, options, md, **kwargs):
+              return f'<pre class="{css_class}">{source}</pre>'
+
           extensions = [
               "abbr",
               "attr_list",
@@ -51,6 +54,15 @@ jobs:
 
           extension_configs = {
               "pymdownx.arithmatex": {"generic": True},
+              "pymdownx.superfences": {
+                  "custom_fences": [
+                      {
+                          "name": "mermaid",
+                          "class": "mermaid",
+                          "format": mermaid_format,
+                      }
+                  ]
+              },
           }
 
           files = sorted(Path("text").glob("*.md"))
@@ -101,6 +113,7 @@ jobs:
           table{border-collapse:collapse}
           th,td{border:1px solid #d0d7de;padding:.4rem .7rem}
           img{max-width:100%}
+          .mermaid{background:#fff;border:1px solid #d0d7de;border-radius:6px;padding:1rem;overflow:auto;text-align:center}
           """
 
           style += "\n" + HtmlFormatter().get_style_defs(".highlight")
@@ -112,6 +125,10 @@ jobs:
               f"<style>{style}</style>"
               "<script>MathJax={tex:{inlineMath:[['\\\\(','\\\\)']],displayMath:[['\\\\[','\\\\]']]}};</script>"
               '<script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>'
+              '<script type="module">'
+              'import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.esm.min.mjs";'
+              'mermaid.initialize({startOnLoad:true});'
+              '</script>'
               + body,
               encoding="utf-8",
           )

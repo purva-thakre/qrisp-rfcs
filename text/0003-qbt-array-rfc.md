@@ -186,17 +186,15 @@ The dynamic branch of `QuantumVariable.extend()` already uses this style, so the
 
 This step introduces a `QubitArray` abstract base class that captures what both register types support: `.size`, indexing (`__getitem__`), slicing, and `+`. Static registers become `StaticQubitArray` (based on `tuple`, immutable), and dynamic registers stay as `DynamicQubitArray`. `.reg` is then annotated as `QubitArray`.
 
-```
-            QuantumVariable.reg
-                declared as
-               ┌───────────┐
-               │ QubitArray │
-               └─────┬─────┘
-              ┌──────┴──────┐
-  ┌───────────┴───┐   ┌────┴──────────────┐
-  │StaticQubitArray│   │DynamicQubitArray   │
-  │(based on tuple)│   │(wraps a JAX tracer)│
-  └───────────────┘   └───────────────────┘
+```mermaid
+graph TD
+    QV["QuantumVariable.reg"]
+    QA["QubitArray"]
+    SQA["StaticQubitArray (tuple-based)"]
+    DQA["DynamicQubitArray (wraps a JAX tracer)"]
+    QV -->|declared as| QA
+    QA --> SQA
+    QA --> DQA
 ```
 
 This is the key step. With `.reg: QubitArray`, a type checker knows exactly which operations are valid in mode-agnostic code. No `isinstance` guards are needed: if an operation exists on `QubitArray`, it works in both modes. And `qv.reg.pop(0)` becomes a type error, which is correct because it does not work in dynamic mode.
