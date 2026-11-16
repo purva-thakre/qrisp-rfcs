@@ -1,3 +1,5 @@
+# RFC 003: Introduce a `QubitArray` base class
+
 - Feature Name: `QubitArray` Class
 - Start Date: 2026-11-11
 - RFC PR: 
