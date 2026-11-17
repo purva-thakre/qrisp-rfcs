@@ -158,7 +158,7 @@ The low-level helpers that were duplicated across adder files have been moved in
 [proposed-design]: #proposed-design
 
 > [!IMPORTANT]
-> One thing to keep in mind: this section relies on the [QubitArray RFC](https://github.com/purva-thakre/qrisp-rfcs/pull/5) landing first.
+> One thing to keep in mind: this section relies on the [QubitArray RFC](https://github.com/purva-thakre/qrisp-rfcs/pull/5) being implemented first.
 
 Ideally, an in-place adder in Qrisp
 
@@ -171,7 +171,7 @@ Ideally, an in-place adder in Qrisp
     * Adders that do not natively support carry operations declare this in their metadata; for these, `.amend()` emulates the carry logic. In this emulation, `c_out` is treated as an extra most significant bit of `b`, and `c_in` is incorporated by means of a controlled increment.
 * `QuantumAdder.__call__` is where the input types are made strict. It accepts the user-facing types in the table below, validates them, and normalizes them to the general signature before invoking the raw adder. This way input handling is done at the level of the `QuantumAdder` class without worrying about messy checks in each adder. 
 
-    A numeric quantum type is a `QuantumVariable` or one of its numeric subclasses, meaning it encodes an integer or float value: `QuantumFloat`, `QuantumInt` (see the next RFC where `QuantumFloat` is going to be split into `QuantumInt` and `QuantumFloat`), `QuantumModulus`, or `QuantumBool`. `QuantumChar` and `QuantumString` are not numeric and are rejected.
+    A numeric quantum type is a `QuantumVariable` or one of its numeric subclasses, meaning it encodes an integer or float value: `QuantumFloat`, `QuantumInt` (see the [next RFC](https://github.com/purva-thakre/qrisp-rfcs/pull/4) where `QuantumFloat` is going to be split into `QuantumInt` and `QuantumFloat`), `QuantumModulus`, or `QuantumBool`. `QuantumChar` and `QuantumString` are not numeric and are rejected.
 
     | Parameter | Accepted types |
     |-----------|----------------|
