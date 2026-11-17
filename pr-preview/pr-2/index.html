@@ -286,7 +286,7 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 </li>
 </ul>
 <h2 id="proposed-design">Proposed design</h2>
-<div class="alert important"><p class="alert-title">Important</p><p>This section relies on the QubitArray RFC being implemented first. In short, that proposal gives static and dynamic registers a shared umbrella type (<code>QubitArray</code>) with <code>.size</code>, indexing, slicing, and <code>+</code> for concatenation, so register code works the same way in both modes instead of relying on static-only list operations.</p></div>
+<div class="alert important"><p class="alert-title">Important</p><p>One thing to keep in mind: this section relies on the <a href="https://github.com/purva-thakre/qrisp-rfcs/pull/5">QubitArray RFC</a> landing first.</p></div>
 
 <p>Ideally, an in-place adder in Qrisp</p>
 <ul>
@@ -520,6 +520,7 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 <p>The same <code>adder</code> parameter propagates to higher-level operations like <code>multiply</code>, comparisons, and Montgomery reduction. Each of these ultimately calls <code>inpl_add</code> somewhere, and the adder choice flows down through the stack. A user who wants Gidney everywhere can pass it once at the top level of a quantum type, and every addition underneath uses it.</p>
 <h3 id="input-validation">Input validation</h3>
 <p>Input validation happens in two layers. <code>QuantumAdder.__call__</code> is the input validator: it accepts the user-facing types in the table above, rejects invalid inputs (including <code>QuantumChar</code> and <code>QuantumString</code>), and normalizes everything to the general signature before calling the raw adder. Raw adders therefore assume the general signature and no longer call a separate <code>_validate_adder_inputs</code> function.</p>
+<p>Because both quantum operands are normalized to the <code>QubitArray</code> from the <a href="https://github.com/purva-thakre/qrisp-rfcs/pull/5">QubitArray RFC</a>, the rest of the adder stack only ever has to deal with that one interface instead of branching on the static and dynamic register classes. That means, for example, that <code>ammend_inpl_adder</code> can size its padding with <code>QubitArray.size</code> rather than checking for <code>StaticQubitArray</code> vs. <code>DynamicQubitArray</code>. It also means the shared typing aliases for adder inputs (<code>QuantumRegister</code>, <code>OptionalQubit</code>) are no longer needed and can be removed.</p>
 <p>Everything above that is the responsibility of the quantum type, not the adder. Concerns like exponent alignment, sign handling, precision validation, and modular reduction are handled by each type’s own <code>__iadd__</code> before it dispatches to the adder. By the time the raw adder is called, <code>QuantumAdder.__call__</code> has already normalized the inputs to the general signature. The details of what each type needs to do before calling the adder are left to the RFCs that refactor the methods for those types.</p>
 <h2 id="unresolved-questions">Unresolved questions</h2>
 <ol>
@@ -533,17 +534,6 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 <p><strong>What should the default adder be?</strong> When no adder is passed to <code>inpl_add</code>, it needs to pick one. The choice depends on what tradeoffs matter most by default (depth vs. ancilla count vs. gate count) and whether the default should vary by execution mode or input type.</p>
 </li>
 </ol>
-<h3 id="qubitarray-integration">QubitArray integration</h3>
-<p>The adder input interface is built on the <code>QubitArray</code> umbrella type introduced by the preceding QubitArray RFC. <code>QubitArray</code> is the common interface shared by the static and dynamic register implementations (<code>StaticQubitArray</code> for static mode and <code>DynamicQubitArray</code> for dynamic mode), giving them a uniform interface for <code>.size</code>, indexing, and slicing. Because that RFC lands first:</p>
-<ul>
-<li><code>QuantumAdder.__call__</code> checks <code>a</code> against <code>SomeClassicalNumberType | QuantumVariable | QubitArray</code> and <code>b</code> against <code>QuantumVariable | QubitArray</code>, then normalizes both quantum operands to <code>QubitArray</code>.</li>
-<li>The raw adder type signature is <code>(a: SomeClassicalNumberType | QubitArray, b: QubitArray, c_in: Qubit | None = None, c_out: Qubit | None = None, ctrl: Qubit | None = None)</code>, which
-  type checkers can verify statically.</li>
-<li><code>ammend_inpl_adder</code>'s size-padding logic uses <code>QubitArray.size</code> instead of
-  branching on <code>StaticQubitArray</code> vs. <code>DynamicQubitArray</code>.</li>
-<li>Finally, the typing aliases for adder inputs currently in the shared helpers folder become
-  redundant and can be removed.</li>
-</ul>
 <h3 id="additional-adders">Additional adders</h3>
 <p>Two published adders are worth wrapping as <code>QuantumAdder</code> instances in a future release:</p>
 <ul>
