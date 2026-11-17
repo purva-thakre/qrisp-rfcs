@@ -158,7 +158,7 @@ The low-level helpers that were duplicated across adder files have been moved in
 [proposed-design]: #proposed-design
 
 > [!IMPORTANT]
-> This section relies on the QubitArray RFC being implemented first. In short, that proposal gives static and dynamic registers a shared umbrella type (`QubitArray`) with `.size`, indexing, slicing, and `+` for concatenation, so register code works the same way in both modes instead of relying on static-only list operations.
+> One thing to keep in mind: this section relies on the [QubitArray RFC](https://github.com/purva-thakre/qrisp-rfcs/pull/5) landing first.
 
 Ideally, an in-place adder in Qrisp
 
@@ -413,6 +413,8 @@ The same `adder` parameter propagates to higher-level operations like `multiply`
 
 Input validation happens in two layers. `QuantumAdder.__call__` is the input validator: it accepts the user-facing types in the table above, rejects invalid inputs (including `QuantumChar` and `QuantumString`), and normalizes everything to the general signature before calling the raw adder. Raw adders therefore assume the general signature and no longer call a separate `_validate_adder_inputs` function.
 
+Because both quantum operands are normalized to the `QubitArray` from the [QubitArray RFC](https://github.com/purva-thakre/qrisp-rfcs/pull/5), the rest of the adder stack only ever has to deal with that one interface instead of branching on the static and dynamic register classes. That means, for example, that `ammend_inpl_adder` can size its padding with `QubitArray.size` rather than checking for `StaticQubitArray` vs. `DynamicQubitArray`. It also means the shared typing aliases for adder inputs (`QuantumRegister`, `OptionalQubit`) are no longer needed and can be removed.
+
 Everything above that is the responsibility of the quantum type, not the adder. Concerns like exponent alignment, sign handling, precision validation, and modular reduction are handled by each type’s own `__iadd__` before it dispatches to the adder. By the time the raw adder is called, `QuantumAdder.__call__` has already normalized the inputs to the general signature. The details of what each type needs to do before calling the adder are left to the RFCs that refactor the methods for those types.
 
 
@@ -424,18 +426,6 @@ Everything above that is the responsibility of the quantum type, not the adder. 
 2. **What verification strategy works in both static and dynamic mode?** The current `inpl_adder_test` relies on statevector inspection, which is static-only. The refactored `.verify()` needs a single test path that works in both modes, consistent with the project's bias towards mode-agnostic code. Measurement-based checking is one option, but it trades exactness for statistical confidence.
 
 3. **What should the default adder be?** When no adder is passed to `inpl_add`, it needs to pick one. The choice depends on what tradeoffs matter most by default (depth vs. ancilla count vs. gate count) and whether the default should vary by execution mode or input type.
-
-### QubitArray integration
-
-The adder input interface is built on the `QubitArray` umbrella type introduced by the preceding QubitArray RFC. `QubitArray` is the common interface shared by the static and dynamic register implementations (`StaticQubitArray` for static mode and `DynamicQubitArray` for dynamic mode), giving them a uniform interface for `.size`, indexing, and slicing. Because that RFC lands first:
-
-- `QuantumAdder.__call__` checks `a` against `SomeClassicalNumberType | QuantumVariable | QubitArray` and `b` against `QuantumVariable | QubitArray`, then normalizes both quantum operands to `QubitArray`.
-- The raw adder type signature is `(a: SomeClassicalNumberType | QubitArray, b: QubitArray, c_in: Qubit | None = None, c_out: Qubit | None = None, ctrl: Qubit | None = None)`, which
-  type checkers can verify statically.
-- `ammend_inpl_adder`'s size-padding logic uses `QubitArray.size` instead of
-  branching on `StaticQubitArray` vs. `DynamicQubitArray`.
-- Finally, the typing aliases for adder inputs currently in the shared helpers folder become
-  redundant and can be removed.
 
 ### Additional adders
 
