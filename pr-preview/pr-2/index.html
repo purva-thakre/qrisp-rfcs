@@ -286,7 +286,7 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 </li>
 </ul>
 <h2 id="proposed-design">Proposed design</h2>
-<div class="alert important"><p class="alert-title">Important</p><p>One thing to keep in mind: this section relies on the <a href="https://github.com/purva-thakre/qrisp-rfcs/pull/5">QubitArray RFC</a> landing first.</p></div>
+<div class="alert important"><p class="alert-title">Important</p><p>One thing to keep in mind: this section relies on the <a href="https://github.com/purva-thakre/qrisp-rfcs/pull/5">QubitArray RFC</a> being implemented first.</p></div>
 
 <p>Ideally, an in-place adder in Qrisp</p>
 <ul>
@@ -303,7 +303,7 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 </li>
 <li>
 <p><code>QuantumAdder.__call__</code> is where the input types are made strict. It accepts the user-facing types in the table below, validates them, and normalizes them to the general signature before invoking the raw adder. This way input handling is done at the level of the <code>QuantumAdder</code> class without worrying about messy checks in each adder. </p>
-<p>A numeric quantum type is a <code>QuantumVariable</code> or one of its numeric subclasses, meaning it encodes an integer or float value: <code>QuantumFloat</code>, <code>QuantumInt</code> (see the next RFC where <code>QuantumFloat</code> is going to be split into <code>QuantumInt</code> and <code>QuantumFloat</code>), <code>QuantumModulus</code>, or <code>QuantumBool</code>. <code>QuantumChar</code> and <code>QuantumString</code> are not numeric and are rejected.</p>
+<p>A numeric quantum type is a <code>QuantumVariable</code> or one of its numeric subclasses, meaning it encodes an integer or float value: <code>QuantumFloat</code>, <code>QuantumInt</code> (see the <a href="https://github.com/purva-thakre/qrisp-rfcs/pull/4">next RFC</a> where <code>QuantumFloat</code> is going to be split into <code>QuantumInt</code> and <code>QuantumFloat</code>), <code>QuantumModulus</code>, or <code>QuantumBool</code>. <code>QuantumChar</code> and <code>QuantumString</code> are not numeric and are rejected.</p>
 <table>
 <thead>
 <tr>
